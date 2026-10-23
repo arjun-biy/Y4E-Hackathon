@@ -7,4 +7,4 @@ while lsof -i :$PORT >/dev/null 2>&1; do PORT=$((PORT+1)); done
 echo "Tray Return Tracker is running at http://localhost:$PORT"
 echo "Keep this window open while you use the app. Close it to stop."
 ( sleep 1; open "http://localhost:$PORT/index.html" ) &
-python3 -m http.server $PORT
+python3 server.py $PORT

@@ -109,7 +109,8 @@ const aiName = () => state.settings.apiKey.startsWith("gsk_") ? "Groq" : "Gemini
 const scanPrompt = items => `This is a photo of a school lunch tray after a student finished eating. The tray was served with: ${items.join(", ")}.
 First describe in a few words what the photo shows. Any tray, plate, bowl, lunchbox, wrapper or food counts as the tray; set tray_visible to false only if there is no food or dishware at all.
 Then, for each served item, estimate what fraction of the original serving is still left (0 = fully eaten or not on the tray, 1 = untouched).
-Reply with JSON only, like {"seen": "a plate with half a pizza and an apple", "tray_visible": true, "left": {"Item name": 0.4}}, using each item name exactly as given.`;
+Also list any foods you see that are NOT in the served list under "other_food".
+Reply with JSON only, like {"seen": "a plate with half a pizza and an apple", "tray_visible": true, "left": {"Item name": 0.4}, "other_food": ["banana"]}, using each item name exactly as given.`;
 
 async function post(url, headers, body) {
   try {
@@ -170,7 +171,9 @@ async function aiEstimate(items, jpegBase64) {
   catch (e) { throw new Error(`${aiName()}'s answer didn't make sense. Scan again.`); }
   if (json.tray_visible === false) throw new Error(`${aiName()} couldn't see any food${json.seen ? ` (it saw: ${json.seen})` : ""}. Hold the plate or tray up in front of the camera and scan again.`);
   const left = json.left || json;
-  return items.map(it => Math.min(1, Math.max(0, Number(left[it]) || 0)));
+  const fracs = items.map(it => Math.min(1, Math.max(0, Number(left[it]) || 0)));
+  fracs.other = Array.isArray(json.other_food) ? json.other_food.map(String) : [];  // foods not on today's menu
+  return fracs;
 }
 
 /* Same as match_to_scale in food-waste-station/station.py: nudge guesses to add up to what the scale measured. */
@@ -431,6 +434,7 @@ async function scanTray() {
   if (photo) { $("snapshot").hidden = true; $("tray").style.visibility = ""; uploaded = null; }
   if (stream) $("tray-frame").classList.add("pip");
 
+  const other = fracs.other?.length ? ` Also saw ${fracs.other.join(", ")}, which isn't on ${menuDay}'s menu. Add it in Menu to track it.` : "";
   const measured = reading == null ? null : reading - state.settings.emptyTray;
   if (measured != null) fracs = matchToScale(fracs, items, measured);
   const left = fracs.reduce((a, f, i) => a + f * (state.items[items[i]] || 0), 0);
@@ -443,8 +447,8 @@ async function scanTray() {
   $("scale-meta").innerHTML = measured != null
     ? `Real scale <b>${fmtInt(reading)}</b> g<br>Food left <b>${fmtInt(measured)}</b> g`
     : `Tray + food <b>${fmtInt(state.settings.emptyTray + left)}</b> g<br>Food left <b>${fmtInt(left)}</b> g`;
-  if (left > 20) { pending = tray; setStatus("Saved. Ask the student why they left food (optional)."); }
-  else setStatus("Saved. Clean tray, nice!");
+  if (left > 20) { pending = tray; setStatus("Saved. Ask the student why they left food (optional)." + other); }
+  else setStatus("Saved. Clean tray, nice!" + other);
   renderVotes(); renderToday();
   $("scan-btn").disabled = false; busy = false;
 }
