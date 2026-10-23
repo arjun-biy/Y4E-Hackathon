@@ -104,8 +104,10 @@ function mockEstimate(items) {
 const DEFAULT_MODEL = "gemini-flash-latest";  // Google's alias for the newest Flash model
 async function geminiEstimate(items, jpegBase64) {
   const { apiKey, model } = state.settings;
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model || DEFAULT_MODEL)}:generateContent`, {
+  let res;
+  try { res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model || DEFAULT_MODEL)}:generateContent`, {
     method: "POST",
+    signal: AbortSignal.timeout(30000),
     headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
     body: JSON.stringify({
       contents: [{ parts: [
@@ -117,7 +119,11 @@ Reply with JSON only, like {"tray_visible": true, "left": {"Item name": 0.4}}, u
       ] }],
       generationConfig: { responseMimeType: "application/json", temperature: 0 }
     })
-  });
+  }); } catch (e) {
+    console.error("Gemini request failed", e);
+    if (e.name === "TimeoutError") throw new Error("Gemini didn't answer in 30 seconds. A school Chrome profile or school Wi-Fi may be blocking it. Try a personal Chrome profile or another network.");
+    throw new Error("Couldn't reach Gemini. Check the internet. A school Chrome profile, extension or Wi-Fi may be blocking it, so try a personal Chrome profile.");
+  }
   if (!res.ok) {
     let detail = "";
     try { detail = (await res.json()).error?.message || ""; } catch (e) {}
@@ -371,15 +377,19 @@ async function scanTray() {
   setStatus(useAI ? "Gemini is looking at what's left on the tray..." : "Scanning tray...");
 
   let fracs;
+  const t0 = Date.now();
+  const ticker = useAI && setInterval(() => setStatus(`Gemini is looking at what's left on the tray... ${Math.round((Date.now() - t0) / 1000)}s`), 1000);
   try {
     if (useAI) fracs = await geminiEstimate(items, photo.b64);
     else { await new Promise(r => setTimeout(r, reduceMotion ? 50 : 900)); fracs = mockEstimate(items); }
   } catch (e) {
+    clearInterval(ticker);
     $("scan-line").hidden = true; $("scan-btn").disabled = false; busy = false;
     if (stream) $("snapshot").hidden = true;
     setStatus(e.message || "Something went wrong reading the tray. Try again.", true);
     return;
   }
+  clearInterval(ticker);
   $("scan-line").hidden = true;
   // camera stays on as a small live preview so the next tray can be scanned right away
   if (photo) { $("snapshot").hidden = true; $("tray").style.visibility = ""; uploaded = null; }
