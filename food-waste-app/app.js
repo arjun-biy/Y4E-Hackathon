@@ -44,9 +44,6 @@ const fmtDate = s => parseIso(s).toLocaleDateString(undefined, { month: "short",
 const level = p => p >= .35 ? "high" : p >= .2 ? "med" : "low";
 const LEVEL_NAME = { high: "High", med: "Medium", low: "Low" };
 const fmtInt = n => Math.round(n).toLocaleString();
-// Food pictures rendered in Blender (design-system/food-icons.blend). Foods added in Menu just show no picture.
-const foodSrc = n => `img/${n.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.png`;
-const foodImg = (n, cls = "thumb") => `<img class="${cls}" src="${foodSrc(n)}" alt="" onerror="this.style.visibility='hidden'">`;
 let rand = Math.random;
 function seeded(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 function gauss(m, s) { let u = 0, v = 0; while (!u) u = rand(); while (!v) v = rand(); return m + s * Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); }
@@ -285,10 +282,8 @@ function renderTray(fracs) {
     const f = fracs ? fracs[i] : null;
     const lv = f == null ? "low" : level(f);
     const pct = f == null ? "" : f === 0 ? "All eaten" : `<b>${Math.round(f * 100)}%</b> left`;
-    // picture shrinks with what's left; a faded ghost when it's all eaten
-    const sc = f == null ? 1 : f === 0 ? .5 : .45 + .55 * Math.sqrt(f);
-    return `<div class="comp${i === 0 ? " main" : ""}${f === 0 ? " eaten" : ""}" style="--lvl:var(--${lv});--s:${sc.toFixed(2)}">
-      <div class="fill" data-h="${f == null ? 0 : Math.round(f * 100)}"></div>${foodImg(it, "food")}
+    return `<div class="comp${i === 0 ? " main" : ""}${f === 0 ? " eaten" : ""}" style="--lvl:var(--${lv})">
+      <div class="fill" data-h="${f == null ? 0 : Math.round(f * 100)}"></div>
       <span class="name">${esc(it)}</span><span class="pct">${pct}</span></div>`;
   }).join("");
   requestAnimationFrame(() => requestAnimationFrame(() =>
@@ -492,7 +487,7 @@ function renderToday() {
   $("t-votes").textContent = fmtInt(votes);
   const rows = Object.entries(per).map(([k, v]) => ({ k, p: v.served ? v.wasted / v.served : 0 })).sort((a, b) => b.p - a.p);
   $("today-list").innerHTML = rows.length ? rows.map(r =>
-    `<div class="mini-row" style="--lvl:var(--${level(r.p)})">${foodImg(r.k)}<span>${esc(r.k)}</span><span class="bar"><i style="width:${Math.round(r.p * 100)}%"></i></span><span class="v">${Math.round(r.p * 100)}%</span></div>`).join("")
+    `<div class="mini-row" style="--lvl:var(--${level(r.p)})"><span>${esc(r.k)}</span><span class="bar"><i style="width:${Math.round(r.p * 100)}%"></i></span><span class="v">${Math.round(r.p * 100)}%</span></div>`).join("")
     : `<p class="muted small" style="margin:0">No trays scanned today yet.</p>`;
 }
 
@@ -626,7 +621,7 @@ function renderDashboard() {
   $("kpis").innerHTML = kpis.map(([k, v, d]) => `<div class="kpi"><span class="k">${k}</span><span class="v">${v}</span><span class="d">${esc(d)}</span></div>`).join("");
 
   hBars($("bars"), st.list.map(s => ({
-    label: s.item, value: s.pct * 100, img: DEFAULT_ITEMS[s.item] ? foodSrc(s.item) : null, text: `${Math.round(s.pct * 100)}%`, color: `var(--${level(s.pct)})`,
+    label: s.item, value: s.pct * 100, text: `${Math.round(s.pct * 100)}%`, color: `var(--${level(s.pct)})`,
     tip: `<b>${esc(s.item)}</b><br>${Math.round(s.pct * 100)}% thrown away (${LEVEL_NAME[level(s.pct)]})<br>${(s.wasted / 1000).toFixed(1)} kg from ${fmtInt(s.servings)} servings`
   })), { step: 10, unit: "%", label: "Percent of each food thrown away" });
 
@@ -644,7 +639,7 @@ function renderDashboard() {
   const tips = st.list.filter(s => s.pct >= .2);
   $("tips").innerHTML = tips.length ? tips.map(s => {
     const lv = level(s.pct), reason = st.topReason[s.item];
-    return `<li class="tip" style="--lvl:var(--${lv})"><div class="tip-top">${foodImg(s.item, "tip-img")}<b>${esc(s.item)}</b><span class="pill">${LEVEL_NAME[lv]}</span></div>
+    return `<li class="tip" style="--lvl:var(--${lv})"><div class="tip-top"><b>${esc(s.item)}</b><span class="pill">${LEVEL_NAME[lv]}</span></div>
       <span class="meta">${Math.round(s.pct * 100)}% wasted · ${(s.wasted / 1000).toFixed(1)} kg · ${reason ? "Top complaint: " + reason : "No complaints yet"}</span>
       <p>${esc(suggestion(s, reason))}</p></li>`;
   }).join("") : `<li class="empty">Nothing is being wasted much. Nice work!</li>`;
@@ -675,7 +670,7 @@ function renderMenu() {
     state.week[sel.dataset.day][+sel.dataset.slot] = sel.value; save();
     renderDayPicker(); renderTray(null); toast(`${sel.dataset.day} menu updated`);
   });
-  $("serving-list").innerHTML = names.map(n => `<div class="serving-row"><label for="g-${esc(n)}">${foodImg(n)}${esc(n)}</label><input type="number" min="1" max="2000" id="g-${esc(n)}" data-item="${esc(n)}" value="${state.items[n]}"></div>`).join("");
+  $("serving-list").innerHTML = names.map(n => `<div class="serving-row"><label for="g-${esc(n)}">${esc(n)}</label><input type="number" min="1" max="2000" id="g-${esc(n)}" data-item="${esc(n)}" value="${state.items[n]}"></div>`).join("");
   $("serving-list").querySelectorAll("input").forEach(inp => inp.onchange = () => {
     const v = Math.round(+inp.value);
     if (!(v >= 1 && v <= 2000)) { inp.value = state.items[inp.dataset.item]; toast("Serving size must be between 1 and 2000 grams"); return; }

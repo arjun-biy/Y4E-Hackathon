@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="app.css?v=5">
+<link rel="stylesheet" href="app.css?v=7">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -72,12 +72,12 @@
         <div class="day-picker" role="group" aria-label="Menu day" id="day-picker"></div>
         <p class="muted small" id="menu-line"></p>
 
+        <p class="status" id="status" role="status" aria-live="polite"></p>
         <div class="tray-frame" id="tray-frame">
           <div class="tray" id="tray"></div>
           <video id="cam" playsinline muted hidden></video>
           <img id="snapshot" alt="Photo of the last tray" hidden>
           <div class="scan-line" id="scan-line" hidden></div>
-          <p class="status" id="status" role="status" aria-live="polite"></p>
         </div>
 
         <div class="scale-row">
@@ -268,6 +268,6 @@
 <div id="tooltip" role="tooltip" hidden></div>
 <div id="toast" role="status" aria-live="polite" hidden></div>
 <canvas id="grab" hidden></canvas>
-<script src="app.js?v=10"></script>
+<script src="app.js?v=11"></script>
 </body>
 </html>
