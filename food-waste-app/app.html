@@ -219,18 +219,18 @@
         <div class="card-head"><h2>Food recognition</h2></div>
         <div class="radio-cards" role="radiogroup" aria-label="Food recognition mode">
           <label class="radio-card">
-            <input type="radio" name="recognizer" id="rec-mock" value="mock">
-            <span><b>Pretend AI</b><span class="muted small">Makes realistic results. No internet or camera needed. Best for practicing the demo.</span></span>
+            <input type="radio" name="recognizer" id="rec-gemini" value="gemini">
+            <span><b>Real scan with Gemini</b><span class="muted small">Takes a photo with the camera and asks Google Gemini how much of each food is left. Needs a free API key.</span></span>
           </label>
           <label class="radio-card">
-            <input type="radio" name="recognizer" id="rec-claude" value="claude">
-            <span><b>Claude vision</b><span class="muted small">Takes a real camera photo and asks Claude what's left on the tray. Needs an API key.</span></span>
+            <input type="radio" name="recognizer" id="rec-mock" value="mock">
+            <span><b>Demo mode</b><span class="muted small">Makes up realistic results. No internet or camera needed. Good for practice.</span></span>
           </label>
         </div>
         <div class="field">
-          <label for="api-key">Anthropic API key</label>
-          <input id="api-key" type="password" autocomplete="off" placeholder="sk-ant-...">
-          <p class="muted small">Saved only in this browser on this computer.</p>
+          <label for="api-key">Gemini API key</label>
+          <input id="api-key" type="password" autocomplete="off" placeholder="AIza...">
+          <p class="muted small">Get one free at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a>. It's saved only in this browser on this computer, never in the code.</p>
         </div>
         <div class="field">
           <label for="model">Model</label>
@@ -268,6 +268,6 @@
 <div id="tooltip" role="tooltip" hidden></div>
 <div id="toast" role="status" aria-live="polite" hidden></div>
 <canvas id="grab" hidden></canvas>
-<script src="app.js?v=4"></script>
+<script src="app.js?v=6"></script>
 </body>
 </html>

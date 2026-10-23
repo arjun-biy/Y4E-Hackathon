@@ -61,14 +61,19 @@ function freshState() {
     week: JSON.parse(JSON.stringify(DEFAULT_WEEK)),
     lists: [],
     trays: [],
-    settings: { recognizer: "mock", apiKey: "", model: "claude-haiku-5-5", emptyTray: 350 },
+    settings: { recognizer: "gemini", apiKey: "", model: DEFAULT_MODEL, emptyTray: 350, v: 2 },
     theme: null
   };
 }
 function load() {
   try {
     const raw = localStorage.getItem(STORE_KEY);
-    if (raw) { state = Object.assign(freshState(), JSON.parse(raw)); return true; }
+    if (raw) {
+      state = Object.assign(freshState(), JSON.parse(raw));
+      // v1 used Claude: switch saved settings to Gemini real scans
+      if (state.settings.v !== 2) Object.assign(state.settings, { recognizer: "gemini", apiKey: "", model: DEFAULT_MODEL, v: 2 });
+      return true;
+    }
   } catch (e) { /* storage blocked or corrupt */ }
   state = freshState();
   return false;
@@ -96,37 +101,40 @@ function mockEstimate(items) {
     return Math.round(Math.min(1, Math.max(0, gauss(avg * 1.6, .2))) * 100) / 100;
   });
 }
-async function claudeEstimate(items, jpegBase64) {
+const DEFAULT_MODEL = "gemini-flash-latest";  // Google's alias for the newest Flash model
+async function geminiEstimate(items, jpegBase64) {
   const { apiKey, model } = state.settings;
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model || DEFAULT_MODEL)}:generateContent`, {
     method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      "anthropic-dangerous-direct-browser-access": "true"
-    },
+    headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
     body: JSON.stringify({
-      model: model || "claude-haiku-5-5",
-      max_tokens: 300,
-      messages: [{
-        role: "user",
-        content: [
-          { type: "image", source: { type: "base64", media_type: "image/jpeg", data: jpegBase64 } },
-          { type: "text", text: `This is a photo of a school lunch tray after a student finished eating. The tray was served with: ${items.join(", ")}. For each item, estimate what fraction of the original serving is left (0 = fully eaten, 1 = untouched). Reply with ONLY a JSON object mapping each item name exactly as given to a number.` }
-        ]
-      }]
+      contents: [{ parts: [
+        { inline_data: { mime_type: "image/jpeg", data: jpegBase64 } },
+        { text: `This is a photo of a school lunch tray after a student finished eating. The tray was served with: ${items.join(", ")}.
+First decide if a lunch tray, plate or food is actually visible in the photo.
+Then, for each served item, estimate what fraction of the original serving is still left (0 = fully eaten or not on the tray, 1 = untouched).
+Reply with JSON only, like {"tray_visible": true, "left": {"Item name": 0.4}}, using each item name exactly as given.` }
+      ] }],
+      generationConfig: { responseMimeType: "application/json", temperature: 0 }
     })
   });
   if (!res.ok) {
-    let msg = `Claude returned an error (${res.status}).`;
-    try { const j = await res.json(); if (j.error?.message) msg += " " + j.error.message; } catch (e) {}
-    throw new Error(msg);
+    let detail = "";
+    try { detail = (await res.json()).error?.message || ""; } catch (e) {}
+    if (res.status === 400 && /api key/i.test(detail)) throw new Error("Gemini says the API key isn't valid. Check it in Settings.");
+    if (res.status === 403) throw new Error("Gemini refused the key (403). Make a new key at aistudio.google.com/apikey and paste it in Settings.");
+    if (res.status === 404) throw new Error(`Gemini doesn't have a model called "${model}". Set the model in Settings back to ${DEFAULT_MODEL}.`);
+    if (res.status === 429) throw new Error("Gemini's free limit is used up for now. Wait a minute and scan again.");
+    throw new Error(`Gemini returned an error (${res.status}). ${detail}`);
   }
   const data = await res.json();
-  const text = data.content?.[0]?.text || "";
-  const json = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
-  return items.map(it => Math.min(1, Math.max(0, Number(json[it]) || 0)));
+  const text = data.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
+  let json;
+  try { json = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1)); }
+  catch (e) { throw new Error("Gemini's answer didn't make sense. Scan again."); }
+  if (json.tray_visible === false) throw new Error("Gemini couldn't see a tray. Hold the tray in front of the camera and scan again.");
+  const left = json.left || json;
+  return items.map(it => Math.min(1, Math.max(0, Number(left[it]) || 0)));
 }
 
 /* Same as match_to_scale in food-waste-station/station.py: nudge guesses to add up to what the scale measured. */
@@ -277,10 +285,10 @@ function castVote(v) {
 }
 
 function updateChip() {
-  const claude = state.settings.recognizer === "claude";
-  $("ai-chip").className = "chip" + (claude ? " solid" : "");
-  $("ai-chip").textContent = claude ? "Claude vision" : "Demo mode";
-  $("empty-g").textContent = state.settings.emptyTray;
+  const real = state.settings.recognizer === "gemini";
+  $("ai-chip").className = "chip" + (real ? " solid" : "");
+  $("ai-chip").textContent = real ? (state.settings.apiKey ? "Gemini real scan" : "Gemini: add key in Settings") : "Demo mode";
+  if ($("empty-g")) $("empty-g").textContent = state.settings.emptyTray;  // gone once a scan fills in scale-meta
 }
 
 /* Camera */
@@ -293,9 +301,9 @@ async function startCamera() {
     $("snapshot").hidden = true; $("tray").style.visibility = "hidden"; $("tray-frame").classList.remove("pip");
     uploaded = null;
     $("cam-btn").classList.add("on"); $("cam-btn").querySelector("span").textContent = "Turn off camera";
-    setStatus(state.settings.recognizer === "claude"
+    setStatus(state.settings.recognizer === "gemini"
       ? "Camera on. Put a tray in front of it and press Scan tray."
-      : "Camera on. Demo mode makes up the results. For real ones, pick Claude vision in Settings.");
+      : "Camera on. Demo mode makes up the results. For real ones, pick Gemini in Settings.");
   } catch (e) {
     setStatus(e.name === "NotAllowedError"
       ? "Camera blocked. Allow it in the browser's address bar, and in System Settings > Privacy & Security > Camera, then try again."
@@ -341,24 +349,30 @@ $("photo-in").onchange = e => {
 async function scanTray() {
   if (busy) return;
   const items = state.week[menuDay];
-  const useClaude = state.settings.recognizer === "claude";
-  if (useClaude && !state.settings.apiKey) { setStatus("Add your Anthropic API key in Settings, or switch to Pretend AI.", true); return; }
-  if (useClaude && !stream && !uploaded) { setStatus("Turn on the camera or pick a photo first so Claude has something to look at.", true); return; }
+  const useAI = state.settings.recognizer === "gemini";
+  if (useAI && !state.settings.apiKey) { setStatus("Paste your free Gemini API key in Settings first (or switch to Demo mode).", true); return; }
   const weighRaw = $("weigh").value.trim(), reading = weighRaw === "" ? null : Math.round(+weighRaw);
   if (reading != null && !(reading >= 0 && reading <= 5000)) { setStatus("Scale reading should be between 0 and 5000 grams.", true); return; }
   if (reading != null && reading < state.settings.emptyTray) { setStatus(`That's lighter than an empty tray (${state.settings.emptyTray} g). Check the reading or the empty tray weight in Settings.`, true); return; }
 
   busy = true; pending = null; renderVotes();
   $("scan-btn").disabled = true;
+  if (useAI && !stream && !uploaded) {
+    // turn the camera on for them and give it a moment to adjust to the light
+    await startCamera();
+    if (!stream) { $("scan-btn").disabled = false; busy = false; return; }
+    setStatus("Hold the tray in front of the camera...");
+    await new Promise(r => setTimeout(r, 1500));
+  }
   let photo = null;
   if (stream) { photo = grabPhoto(); $("snapshot").src = photo.url; $("snapshot").hidden = false; $("tray-frame").classList.remove("pip"); }
   else if (uploaded) photo = uploaded;
   $("scan-line").hidden = false;
-  setStatus(useClaude ? "Asking Claude what's left on the tray..." : "Scanning tray...");
+  setStatus(useAI ? "Gemini is looking at what's left on the tray..." : "Scanning tray...");
 
   let fracs;
   try {
-    if (useClaude) fracs = await claudeEstimate(items, photo.b64);
+    if (useAI) fracs = await geminiEstimate(items, photo.b64);
     else { await new Promise(r => setTimeout(r, reduceMotion ? 50 : 900)); fracs = mockEstimate(items); }
   } catch (e) {
     $("scan-line").hidden = true; $("scan-btn").disabled = false; busy = false;
@@ -634,8 +648,8 @@ $("add-item-form").addEventListener("submit", e => {
 /* ---------------- Settings ---------------- */
 function renderSettings() {
   const s = state.settings;
-  $("rec-mock").checked = s.recognizer !== "claude";
-  $("rec-claude").checked = s.recognizer === "claude";
+  $("rec-mock").checked = s.recognizer !== "gemini";
+  $("rec-gemini").checked = s.recognizer === "gemini";
   $("api-key").value = s.apiKey;
   $("model").value = s.model;
   $("empty-tray").value = s.emptyTray;
@@ -643,9 +657,9 @@ function renderSettings() {
   $("data-summary").textContent = `${fmtInt(state.trays.length)} trays saved (${fmtInt(sample)} sample, ${fmtInt(state.trays.length - sample)} scanned by you).`;
   $("confirm").hidden = true;
 }
-document.querySelectorAll('input[name="recognizer"]').forEach(r => r.onchange = () => { state.settings.recognizer = r.value; save(); updateChip(); toast(r.value === "claude" ? "Using Claude vision" : "Using Pretend AI"); });
-$("api-key").onchange = () => { state.settings.apiKey = $("api-key").value.trim(); save(); toast("API key saved"); };
-$("model").onchange = () => { state.settings.model = $("model").value.trim() || "claude-haiku-5-5"; save(); };
+document.querySelectorAll('input[name="recognizer"]').forEach(r => r.onchange = () => { state.settings.recognizer = r.value; save(); updateChip(); toast(r.value === "gemini" ? "Using Gemini real scans" : "Using Demo mode"); });
+$("api-key").onchange = () => { state.settings.apiKey = $("api-key").value.trim(); save(); updateChip(); toast("API key saved"); };
+$("model").onchange = () => { state.settings.model = $("model").value.trim() || DEFAULT_MODEL; $("model").value = state.settings.model; save(); };
 $("empty-tray").onchange = () => {
   const v = Math.round(+$("empty-tray").value);
   if (!(v >= 0 && v <= 3000)) { $("empty-tray").value = state.settings.emptyTray; toast("Enter a weight between 0 and 3000 grams"); return; }
