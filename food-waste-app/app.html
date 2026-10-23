@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="app.css?v=4">
+<link rel="stylesheet" href="app.css?v=5">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -77,6 +77,7 @@
           <video id="cam" playsinline muted hidden></video>
           <img id="snapshot" alt="Photo of the last tray" hidden>
           <div class="scan-line" id="scan-line" hidden></div>
+          <p class="status" id="status" role="status" aria-live="polite"></p>
         </div>
 
         <div class="scale-row">
@@ -97,7 +98,6 @@
           <label class="btn" id="photo-btn"><svg><use href="#i-image"/></svg><span>Use a photo</span><input id="photo-in" type="file" accept="image/*" capture="environment" hidden></label>
           <button class="btn" id="rush-btn"><svg><use href="#i-bolt"/></svg>Lunch rush (50 trays)</button>
         </div>
-        <p class="status" id="status" role="status" aria-live="polite"></p>
       </div>
 
       <aside class="side-col">
@@ -268,6 +268,6 @@
 <div id="tooltip" role="tooltip" hidden></div>
 <div id="toast" role="status" aria-live="polite" hidden></div>
 <canvas id="grab" hidden></canvas>
-<script src="app.js?v=7"></script>
+<script src="app.js?v=8"></script>
 </body>
 </html>

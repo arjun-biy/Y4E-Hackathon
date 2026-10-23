@@ -274,7 +274,13 @@ function animateReadout(target) {
   })(start);
 }
 
-function setStatus(msg, err) { $("status").textContent = msg; $("status").classList.toggle("err", !!err); }
+// shown over the top of the tray box; info messages fade after a few seconds so they don't cover results
+let statusTimer;
+function setStatus(msg, err) {
+  $("status").textContent = msg; $("status").classList.toggle("err", !!err);
+  clearTimeout(statusTimer);
+  if (!err && !busy) statusTimer = setTimeout(() => $("status").textContent = "", 6000);
+}
 
 function renderVotes() {
   $("vote-grid").innerHTML = REASONS.map((r, i) =>
