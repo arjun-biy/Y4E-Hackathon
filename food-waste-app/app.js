@@ -6,19 +6,23 @@
 const DEFAULT_ITEMS = {
   "Cheese pizza": 140, "Chicken tacos": 160, "Fish sticks": 120, "Bean and cheese burrito": 200,
   "Spaghetti with marinara": 220, "Chicken nuggets": 110, "Steamed broccoli": 80, "Green salad": 70,
-  "Corn": 90, "Carrot sticks": 60, "Apple": 150, "Orange slices": 100, "Milk": 240
+  "Corn": 90, "Carrot sticks": 60, "Apple": 150, "Orange slices": 100, "Milk": 240,
+  "Veggie wrap": 180, "Veggie burger": 170
 };
+// Each day lists foods by category; a category can hold several foods (students usually take one of them)
+const DEFAULT_CATEGORIES = ["Main", "Veg main", "Side", "Fruit", "Drink"];
 const DEFAULT_WEEK = {
-  Monday: ["Cheese pizza", "Green salad", "Apple", "Milk"],
-  Tuesday: ["Chicken tacos", "Corn", "Orange slices", "Milk"],
-  Wednesday: ["Fish sticks", "Steamed broccoli", "Apple", "Milk"],
-  Thursday: ["Bean and cheese burrito", "Carrot sticks", "Orange slices", "Milk"],
-  Friday: ["Spaghetti with marinara", "Steamed broccoli", "Apple", "Milk"]
+  Monday: { Main: ["Cheese pizza"], "Veg main": ["Veggie wrap"], Side: ["Green salad"], Fruit: ["Apple", "Orange slices"], Drink: ["Milk"] },
+  Tuesday: { Main: ["Chicken tacos"], "Veg main": ["Bean and cheese burrito"], Side: ["Corn"], Fruit: ["Orange slices"], Drink: ["Milk"] },
+  Wednesday: { Main: ["Fish sticks"], "Veg main": ["Veggie burger"], Side: ["Steamed broccoli"], Fruit: ["Apple"], Drink: ["Milk"] },
+  Thursday: { Main: ["Chicken nuggets"], "Veg main": ["Bean and cheese burrito"], Side: ["Carrot sticks", "Corn"], Fruit: ["Orange slices"], Drink: ["Milk"] },
+  Friday: { Main: ["Spaghetti with marinara"], "Veg main": ["Cheese pizza"], Side: ["Steamed broccoli"], Fruit: ["Apple", "Orange slices"], Drink: ["Milk"] }
 };
 const TYPICAL = {
   "Steamed broccoli": .55, "Green salad": .5, "Fish sticks": .4, "Carrot sticks": .35, "Corn": .25,
   "Apple": .3, "Orange slices": .2, "Milk": .3, "Spaghetti with marinara": .2,
-  "Bean and cheese burrito": .25, "Chicken tacos": .12, "Cheese pizza": .08, "Chicken nuggets": .06
+  "Bean and cheese burrito": .25, "Chicken tacos": .12, "Cheese pizza": .08, "Chicken nuggets": .06,
+  "Veggie wrap": .3, "Veggie burger": .25
 };
 const VEG = new Set(["Steamed broccoli", "Green salad", "Corn", "Carrot sticks"]);
 const FRUIT = new Set(["Apple", "Orange slices"]);
@@ -50,11 +54,12 @@ function gauss(m, s) { let u = 0, v = 0; while (!u) u = rand(); while (!v) v = r
 const today = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
 
 /* ---------------- Storage ---------------- */
-// trays: { d: "YYYY-MM-DD", l: listIndex, f: [fractions], v: voteIndex|-1, s: 1 if sample }
+// trays: { d: "YYYY-MM-DD", l: listIndex, f: [fraction left, or null if the student didn't take it], v: voteIndex|-1, s: 1 if sample }
 let state;
 function freshState() {
   return {
     items: { ...DEFAULT_ITEMS },
+    categories: [...DEFAULT_CATEGORIES],
     week: JSON.parse(JSON.stringify(DEFAULT_WEEK)),
     lists: [],
     trays: [],
@@ -69,6 +74,11 @@ function load() {
       state = Object.assign(freshState(), JSON.parse(raw));
       // v1 used Claude: switch saved settings to Gemini real scans
       if (state.settings.v !== 2) Object.assign(state.settings, { recognizer: "gemini", apiKey: "", model: "", v: 2 });
+      // older menus had one food per slot: [main, side, fruit, drink]
+      if (Array.isArray(state.week.Monday)) {
+        state.categories = [...DEFAULT_CATEGORIES];
+        for (const d of SCHOOL_DAYS) { const [m, sd, f, dr] = state.week[d]; state.week[d] = { Main: [m], "Veg main": [], Side: [sd], Fruit: [f], Drink: [dr] }; }
+      }
       return true;
     }
   } catch (e) { /* storage blocked or corrupt */ }
@@ -83,6 +93,13 @@ function save() {
     catch (e) { toast("Couldn't save data in this browser. It will reset when you close the page."); }
   }, 150);
 }
+// One day's menu as a flat list in category order: [{ it: "Apple", cat: "Fruit" }, ...]
+function dayMenu(day) {
+  const seen = new Set(), out = [];
+  for (const cat of state.categories) for (const it of state.week[day]?.[cat] || []) if (!seen.has(it)) { seen.add(it); out.push({ it, cat }); }
+  return out;
+}
+const dayItems = day => dayMenu(day).map(m => m.it);
 function listIndex(items) {
   const key = items.join("|");
   let i = state.lists.findIndex(l => l.join("|") === key);
@@ -91,8 +108,14 @@ function listIndex(items) {
 }
 
 /* ---------------- Recognizers ---------------- */
-function mockEstimate(items) {
-  return items.map(it => {
+// pretend student takes one food from each category; the foods they didn't take are null
+function mockEstimate(menu) {
+  const byCat = {};
+  // ponytail: any category with "main" in its name counts as one choice (regular or veg); add explicit groups if a school needs it
+  for (const { it, cat } of menu) (byCat[/main/i.test(cat) ? "main" : cat] ||= []).push(it);
+  const taken = new Set(Object.values(byCat).map(list => list[Math.floor(rand() * list.length)]));
+  return menu.map(({ it }) => {
+    if (!taken.has(it)) return null;
     const avg = TYPICAL[it] ?? .25;
     if (rand() < .45) return 0;
     return Math.round(Math.min(1, Math.max(0, gauss(avg * 1.6, .2))) * 100) / 100;
@@ -103,9 +126,10 @@ const DEFAULT_MODEL = "gemini-flash-latest";  // Google's alias for the newest F
 const GROQ_MODELS = ["qwen/qwen3.8-27b", "meta-llama/llama-4-scout-17b-16e-instruct"];
 // The key says which AI it's for: Groq keys start with gsk_, Gemini keys with AIza
 const aiName = () => state.settings.apiKey.startsWith("gsk_") ? "Groq" : "Gemini";
-const scanPrompt = items => `This is a photo of a school lunch tray after a student finished eating. The tray was served with: ${items.join(", ")}.
+const scanPrompt = menu => `This is a photo of a school lunch tray after a student finished eating. Today's menu, by category (students usually take one food from each category):
+${[...new Set(menu.map(m => m.cat))].map(c => `- ${c}: ${menu.filter(m => m.cat === c).map(m => m.it).join(", ")}`).join("\n")}
 First describe in a few words what the photo shows. Any tray, plate, bowl, lunchbox, wrapper or food counts as the tray; set tray_visible to false only if there is no food or dishware at all.
-Then, for each served item, estimate what fraction of the original serving is still left (0 = fully eaten or not on the tray, 1 = untouched).
+Then, for each menu item, estimate what fraction of the original serving is still left (0 = fully eaten, 1 = untouched). If the student didn't take that item at all, use null.
 Also list any foods you see that are NOT in the served list under "other_food".
 Reply with JSON only, like {"seen": "a plate with half a pizza and an apple", "tray_visible": true, "left": {"Item name": 0.4}, "other_food": ["banana"]}, using each item name exactly as given.`;
 
@@ -122,11 +146,11 @@ async function errorDetail(res) {
   try { return (await res.json()).error?.message || ""; } catch (e) { return ""; }
 }
 
-async function geminiText(items, jpegBase64) {
+async function geminiText(menu, jpegBase64) {
   const { apiKey, model } = state.settings;
   const m = model.startsWith("gemini") ? model : DEFAULT_MODEL;
   const res = await post(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent`, { "x-goog-api-key": apiKey }, {
-    contents: [{ parts: [{ inline_data: { mime_type: "image/jpeg", data: jpegBase64 } }, { text: scanPrompt(items) }] }],
+    contents: [{ parts: [{ inline_data: { mime_type: "image/jpeg", data: jpegBase64 } }, { text: scanPrompt(menu) }] }],
     generationConfig: { responseMimeType: "application/json", temperature: 0 }
   });
   if (!res.ok) {
@@ -141,14 +165,14 @@ async function geminiText(items, jpegBase64) {
   return data.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
 }
 
-async function groqText(items, jpegBase64) {
+async function groqText(menu, jpegBase64) {
   const { apiKey, model } = state.settings;
   const models = [...new Set([model, ...GROQ_MODELS].filter(m => m && !m.startsWith("gemini")))];
   for (const m of models) {
     const res = await post("https://api.groq.com/openai/v1/chat/completions", { authorization: `Bearer ${apiKey}` }, {
       model: m, temperature: 0, max_completion_tokens: 600, response_format: { type: "json_object" },
       messages: [{ role: "user", content: [
-        { type: "text", text: scanPrompt(items) },
+        { type: "text", text: scanPrompt(menu) },
         { type: "image_url", image_url: { url: `data:image/jpeg;base64,${jpegBase64}` } }
       ] }]
     });
@@ -161,14 +185,14 @@ async function groqText(items, jpegBase64) {
   }
 }
 
-async function aiEstimate(items, jpegBase64) {
-  const text = aiName() === "Groq" ? await groqText(items, jpegBase64) : await geminiText(items, jpegBase64);
+async function aiEstimate(menu, jpegBase64) {
+  const text = aiName() === "Groq" ? await groqText(menu, jpegBase64) : await geminiText(menu, jpegBase64);
   let json;
   try { json = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1)); }
   catch (e) { throw new Error(`${aiName()}'s answer didn't make sense. Scan again.`); }
   if (json.tray_visible === false) throw new Error(`${aiName()} couldn't see any food${json.seen ? ` (it saw: ${json.seen})` : ""}. Hold the plate or tray up in front of the camera and scan again.`);
   const left = json.left || json;
-  const fracs = items.map(it => Math.min(1, Math.max(0, Number(left[it]) || 0)));
+  const fracs = menu.map(({ it }) => left[it] == null ? null : Math.min(1, Math.max(0, Number(left[it]) || 0)));
   fracs.other = Array.isArray(json.other_food) ? json.other_food.map(String) : [];  // foods not on today's menu
   return fracs;
 }
@@ -178,7 +202,7 @@ function matchToScale(fracs, items, measured) {
   const est = fracs.reduce((a, f, i) => a + f * (state.items[items[i]] || 0), 0);
   if (est <= 0 || measured <= 0) return fracs;
   const k = Math.max(.5, Math.min(2, measured / est));
-  return fracs.map(f => Math.round(Math.min(1, f * k) * 100) / 100);
+  return fracs.map(f => f == null ? null : Math.round(Math.min(1, f * k) * 100) / 100);
 }
 
 /* ---------------- Sample data ---------------- */
@@ -189,12 +213,13 @@ function seedSample() {
   const d = new Date(end); d.setDate(d.getDate() - 28);
   while (d < end) {
     const dayName = DAYS[d.getDay()];
-    const items = state.week[dayName];
-    if (items) {
+    const menu = SCHOOL_DAYS.includes(dayName) ? dayMenu(dayName) : [];
+    const items = menu.map(m => m.it);
+    if (items.length) {
       const l = listIndex(items);
       const n = 150 + Math.floor(rand() * 110);
       for (let i = 0; i < n; i++) {
-        const f = mockEstimate(items);
+        const f = mockEstimate(menu);
         const left = f.reduce((a, x, k) => a + x * (state.items[items[k]] || 0), 0);
         let v = -1;
         if (left > 20 && rand() < .3) {
@@ -273,18 +298,17 @@ function renderDayPicker() {
   $("day-picker").innerHTML = SCHOOL_DAYS.map(d =>
     `<button data-day="${d}" aria-pressed="${d === menuDay}">${d.slice(0, 3)}${d === todayName ? '<span class="today-dot">today</span>' : ""}</button>`).join("");
   $("day-picker").querySelectorAll("button").forEach(b => b.onclick = () => { menuDay = b.dataset.day; renderDayPicker(); renderTray(null); });
-  $("menu-line").textContent = state.week[menuDay].join(" · ");
+  $("menu-line").textContent = state.categories.filter(c => state.week[menuDay][c]?.length).map(c => `${c}: ${state.week[menuDay][c].join(", ")}`).join(" · ") || "Nothing on the menu yet. Add foods in Menu.";
 }
 
 function renderTray(fracs) {
-  const items = state.week[menuDay];
-  $("tray").innerHTML = items.map((it, i) => {
+  $("tray").innerHTML = dayMenu(menuDay).map(({ it, cat }, i) => {
     const f = fracs ? fracs[i] : null;
-    const lv = f == null ? "low" : level(f);
-    const pct = f == null ? "" : f === 0 ? "All eaten" : `<b>${Math.round(f * 100)}%</b> left`;
-    return `<div class="comp${i === 0 ? " main" : ""}${f === 0 ? " eaten" : ""}" style="--lvl:var(--${lv})">
+    const skipped = fracs && f == null;  // student didn't take this one
+    const pct = !fracs ? "" : skipped ? "Not taken" : f === 0 ? "All eaten" : `<b>${Math.round(f * 100)}%</b> left`;
+    return `<div class="comp${skipped ? " skipped" : ""}" style="--lvl:var(--${f == null ? "low" : level(f)})">
       <div class="fill" data-h="${f == null ? 0 : Math.round(f * 100)}"></div>
-      <span class="name">${esc(it)}</span><span class="pct">${pct}</span></div>`;
+      <span class="name"><span class="cat">${esc(cat)}</span>${esc(it)}</span><span class="pct">${pct}</span></div>`;
   }).join("");
   requestAnimationFrame(() => requestAnimationFrame(() =>
     $("tray").querySelectorAll(".fill").forEach(el => el.style.height = el.dataset.h + "%")));
@@ -388,7 +412,8 @@ $("photo-in").onchange = e => {
 
 async function scanTray() {
   if (busy) return;
-  const items = state.week[menuDay];
+  const menu = dayMenu(menuDay), items = menu.map(m => m.it);
+  if (!items.length) { setStatus(`There's nothing on ${menuDay}'s menu. Add foods in Menu first.`, true); return; }
   const useAI = state.settings.recognizer === "gemini";
   if (useAI && !state.settings.apiKey) { setStatus("Paste your free Gemini or Groq API key in Settings first (or switch to Demo mode).", true); return; }
   const weighRaw = $("weigh").value.trim(), reading = weighRaw === "" ? null : Math.round(+weighRaw);
@@ -414,8 +439,8 @@ async function scanTray() {
   const t0 = Date.now();
   const ticker = useAI && setInterval(() => setStatus(`${aiName()} is looking at what's left on the tray... ${Math.round((Date.now() - t0) / 1000)}s`), 1000);
   try {
-    if (useAI) fracs = await aiEstimate(items, photo.b64);
-    else { await new Promise(r => setTimeout(r, reduceMotion ? 50 : 900)); fracs = mockEstimate(items); }
+    if (useAI) fracs = await aiEstimate(menu, photo.b64);
+    else { await new Promise(r => setTimeout(r, reduceMotion ? 50 : 900)); fracs = mockEstimate(menu); }
   } catch (e) {
     clearInterval(ticker);
     $("scan-line").hidden = true; $("scan-btn").disabled = false; busy = false;
@@ -450,10 +475,12 @@ async function scanTray() {
 $("scan-btn").onclick = scanTray;
 
 $("rush-btn").onclick = () => {
-  const items = state.week[menuDay], l = listIndex(items);
+  const menu = dayMenu(menuDay), items = menu.map(m => m.it);
+  if (!items.length) { setStatus(`There's nothing on ${menuDay}'s menu. Add foods in Menu first.`, true); return; }
+  const l = listIndex(items);
   let last;
   for (let i = 0; i < 50; i++) {
-    const f = mockEstimate(items);
+    const f = mockEstimate(menu);
     const left = f.reduce((a, x, k) => a + x * (state.items[items[k]] || 0), 0);
     last = { d: iso(today()), l, f, v: left > 20 && rand() < .3 ? Math.floor(rand() * 4) : -1, s: 0 };
     state.trays.push(last);
@@ -476,6 +503,7 @@ function renderToday() {
     const items = state.lists[t.l];
     if (t.v >= 0) votes++;
     t.f.forEach((f, i) => {
+      if (f == null) return;  // not taken
       const g = state.items[items[i]] || 0;
       wasted += f * g;
       const p = per[items[i]] || (per[items[i]] = { served: 0, wasted: 0 });
@@ -514,6 +542,7 @@ function stats(trays) {
     const day = daily[t.d] || (daily[t.d] = { kg: 0, n: 0 });
     day.n++;
     t.f.forEach((f, i) => {
+      if (f == null) return;  // not taken
       const it = list[i], g = state.items[it] || 0;
       const s = items[it] || (items[it] = { item: it, servings: 0, served: 0, wasted: 0 });
       s.servings++; s.served += g; s.wasted += f * g;
@@ -648,6 +677,7 @@ function renderDashboard() {
 $("export-btn").onclick = () => {
   const rows = [["date", "tray", "food", "served_grams", "fraction_left", "wasted_grams", "vote", "sample"]];
   filtered().forEach((t, n) => state.lists[t.l].forEach((it, i) => {
+    if (t.f[i] == null) return;  // not taken
     const g = state.items[it] || 0;
     rows.push([t.d, n + 1, it, g, t.f[i], (t.f[i] * g).toFixed(1), t.v >= 0 ? REASONS[t.v].label : "", t.s ? "yes" : "no"]);
   }));
@@ -660,16 +690,47 @@ $("export-btn").onclick = () => {
 };
 
 /* ---------------- Menu ---------------- */
+function menuChanged(msg) { save(); renderMenu(); renderDayPicker(); renderTray(null); if (msg) toast(msg); }
+
 function renderMenu() {
   const names = Object.keys(state.items).sort();
-  const slots = ["Main", "Side", "Fruit", "Drink"];
-  $("week-table").innerHTML = `<thead><tr><th>Day</th>${slots.map(s => `<th>${s}</th>`).join("")}</tr></thead><tbody>${
-    SCHOOL_DAYS.map(d => `<tr><td>${d}</td>${slots.map((s, i) => `<td><select id="m-${d}-${i}" data-day="${d}" data-slot="${i}" aria-label="${d} ${s}">${
-      names.map(n => `<option${state.week[d][i] === n ? " selected" : ""}>${esc(n)}</option>`).join("")}</select></td>`).join("")}</tr>`).join("")}</tbody>`;
+  // rows = categories, columns = days; each cell holds any number of foods
+  $("week-table").innerHTML = `<thead><tr><th></th>${SCHOOL_DAYS.map(d => `<th>${d}</th>`).join("")}</tr></thead><tbody>${
+    state.categories.map(cat => `<tr><td>${esc(cat)}</td>${SCHOOL_DAYS.map(d => {
+      const list = state.week[d][cat] || [];
+      return `<td><div class="foods">${list.map((it, k) =>
+        `<span class="food-chip">${esc(it)}<button data-day="${d}" data-cat="${esc(cat)}" data-k="${k}" aria-label="Remove ${esc(it)} from ${d} ${esc(cat)}">&times;</button></span>`).join("")}
+        <select data-day="${d}" data-cat="${esc(cat)}" aria-label="Add a food to ${d} ${esc(cat)}"><option value="">+ Add</option>${
+          names.filter(n => !list.includes(n)).map(n => `<option>${esc(n)}</option>`).join("")}</select></div></td>`;
+    }).join("")}</tr>`).join("")}</tbody>`;
   $("week-table").querySelectorAll("select").forEach(sel => sel.onchange = () => {
-    state.week[sel.dataset.day][+sel.dataset.slot] = sel.value; save();
-    renderDayPicker(); renderTray(null); toast(`${sel.dataset.day} menu updated`);
+    const { day, cat } = sel.dataset;
+    (state.week[day][cat] ||= []).push(sel.value);
+    menuChanged(`${sel.value} added to ${day} ${cat}`);
   });
+  $("week-table").querySelectorAll(".food-chip button").forEach(b => b.onclick = () => {
+    const { day, cat, k } = b.dataset;
+    const [gone] = state.week[day][cat].splice(+k, 1);
+    menuChanged(`${gone} removed from ${day} ${cat}`);
+  });
+
+  $("cat-list").innerHTML = state.categories.map((c, i) => `<div class="cat-row"><input type="text" value="${esc(c)}" data-i="${i}" aria-label="Category name"><button class="btn small-btn danger" data-i="${i}">Remove</button></div>`).join("");
+  $("cat-list").querySelectorAll("input").forEach(inp => inp.onchange = () => {
+    const old = state.categories[+inp.dataset.i], name = inp.value.trim();
+    if (!name || (name !== old && state.categories.includes(name))) { inp.value = old; toast(name ? `There's already a ${name} category` : "Category names can't be empty"); return; }
+    state.categories[+inp.dataset.i] = name;
+    for (const d of SCHOOL_DAYS) if (state.week[d][old]) { state.week[d][name] = state.week[d][old]; delete state.week[d][old]; }
+    menuChanged(`Renamed to ${name}`);
+  });
+  $("cat-list").querySelectorAll("button").forEach(b => b.onclick = () => {
+    const cat = state.categories[+b.dataset.i];
+    const used = SCHOOL_DAYS.some(d => state.week[d][cat]?.length);
+    if (used && !confirm(`Remove ${cat}? Its foods will be taken off every day's menu.`)) return;
+    state.categories.splice(+b.dataset.i, 1);
+    for (const d of SCHOOL_DAYS) delete state.week[d][cat];
+    menuChanged(`${cat} removed`);
+  });
+
   $("serving-list").innerHTML = names.map(n => `<div class="serving-row"><label for="g-${esc(n)}">${esc(n)}</label><input type="number" min="1" max="2000" id="g-${esc(n)}" data-item="${esc(n)}" value="${state.items[n]}"></div>`).join("");
   $("serving-list").querySelectorAll("input").forEach(inp => inp.onchange = () => {
     const v = Math.round(+inp.value);
@@ -677,6 +738,17 @@ function renderMenu() {
     state.items[inp.dataset.item] = v; save(); toast(`${inp.dataset.item}: ${v} g`);
   });
 }
+$("add-cat-form").addEventListener("submit", e => {
+  e.preventDefault();
+  const name = $("new-cat").value.trim(), err = $("cat-error");
+  err.hidden = true;
+  if (!name) { err.textContent = "Type the name of the category."; err.hidden = false; return; }
+  if (state.categories.includes(name)) { err.textContent = `There's already a ${name} category.`; err.hidden = false; return; }
+  state.categories.push(name);
+  $("new-cat").value = "";
+  menuChanged(`${name} added. Pick its foods in the menu table.`);
+});
+$("new-cat").addEventListener("input", () => $("cat-error").hidden = true);
 $("add-item-form").addEventListener("submit", e => {
   e.preventDefault();
   const name = $("new-item").value.trim(), g = Math.round(+$("new-grams").value), err = $("add-error");
@@ -686,7 +758,7 @@ $("add-item-form").addEventListener("submit", e => {
   if (!(g >= 1 && g <= 2000)) { err.textContent = "Enter a serving size between 1 and 2000 grams."; err.hidden = false; return; }
   state.items[name] = g; save();
   $("new-item").value = ""; $("new-grams").value = "";
-  renderMenu(); toast(`${name} added. Pick it in the menu table to serve it.`);
+  renderMenu(); toast(`${name} added. Add it to a day in the menu table.`);
 });
 ["new-item", "new-grams"].forEach(id => $(id).addEventListener("input", () => $("add-error").hidden = true));
 

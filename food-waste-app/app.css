@@ -136,10 +136,12 @@ main { padding-block: 32px 64px; padding-inline: max(16px, min(4vw, 40px)); max-
 .day-picker .today-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink); font-size: 0; }
 #menu-line { margin: -6px 0 0; font-size: 13px; }
 
-.tray-frame { position: relative; border-radius: 20px; overflow: hidden; background: var(--tray); aspect-ratio: 16 / 9.5; max-width: 100%; }
-.tray { position: absolute; inset: 0; padding: 12px; display: grid; grid-template-columns: 1.35fr 1fr; grid-auto-rows: 1fr; gap: 8px; }
+/* grows with the number of foods on the menu; the camera covers the whole box */
+.tray-frame { position: relative; border-radius: 20px; overflow: hidden; background: var(--tray); min-height: 300px; max-width: 100%; }
+.tray { padding: 12px; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); grid-auto-rows: minmax(118px, 1fr); gap: 8px; }
 .comp { position: relative; overflow: hidden; border-radius: 12px; background: var(--paper); padding: 12px 14px; display: flex; flex-direction: column; justify-content: space-between; min-width: 0; border: 1px solid var(--hairline); }
-.comp.main { grid-row: span 3; }
+.comp.skipped { opacity: .45; }
+.comp .cat { display: block; font-size: 11px; font-weight: 500; color: var(--mid); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 2px; }
 .comp .fill {
   position: absolute; inset: auto 0 0 0; height: 0;
   background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--ink) 9%, transparent) 0 2px, transparent 2px 7px);
@@ -150,9 +152,7 @@ main { padding-block: 32px 64px; padding-inline: max(16px, min(4vw, 40px)); max-
 .comp .pct { position: relative; font-family: var(--mono); font-size: 13px; color: var(--mid); }
 .comp .pct b { color: var(--ink); font-size: 22px; font-weight: 500; letter-spacing: -.02em; }
 @media (max-width: 560px) {
-  .tray-frame { aspect-ratio: 4 / 4.2; }
-  .tray { padding: 10px; gap: 8px; grid-template-columns: 1fr 1fr; grid-template-rows: 1.3fr 1fr 1fr; }
-  .comp.main { grid-row: auto; grid-column: span 2; }
+  .tray { padding: 10px; grid-template-columns: 1fr 1fr; }
 }
 #cam, #snapshot { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .tray-frame.pip #cam { inset: auto 12px 12px auto; width: 26%; height: auto; aspect-ratio: 4 / 3; border-radius: 12px; z-index: 2; box-shadow: 0 4px 16px rgb(0 0 0 / .25); }
@@ -242,9 +242,16 @@ td.n, th.n { text-align: right; font-family: var(--mono); font-variant-numeric: 
 .tip p { margin: 0; font-size: 14px; line-height: 1.5; }
 
 /* Menu */
-.menu-table select { width: 100%; min-height: 36px; border-radius: 12px; border: 1px solid transparent; background: var(--input); color: var(--ink); font: inherit; font-size: 13px; padding: 6px 10px; min-width: 130px; }
+.menu-table select { width: 100%; min-height: 32px; border-radius: 12px; border: 1px solid transparent; background: var(--input); color: var(--ink); font: inherit; font-size: 13px; padding: 6px 10px; min-width: 130px; }
 .menu-table select:focus { border-color: var(--hairline); outline: none; }
 .menu-table td:first-child { font-weight: 500; white-space: nowrap; }
+.menu-table td { vertical-align: top; }
+.foods { display: flex; flex-direction: column; gap: 4px; min-width: 130px; }
+.food-chip { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 13px; padding: 4px 4px 4px 10px; border-radius: 10px; background: var(--paper); border: 1px solid var(--hairline); }
+.food-chip button { border: none; background: transparent; color: var(--mid); cursor: pointer; font-size: 16px; line-height: 1; width: 24px; height: 24px; border-radius: 8px; }
+.food-chip button:hover { background: var(--input); color: var(--ink); }
+.cat-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: center; }
+.add-row.cat-add { grid-template-columns: minmax(0, 1fr) auto; }
 .serving-list { display: flex; flex-direction: column; gap: 6px; max-height: 460px; overflow-y: auto; padding-right: 4px; }
 .serving-row { display: grid; grid-template-columns: minmax(0, 1fr) 96px; align-items: center; gap: 10px; }
 input[type="text"], input[type="number"], input[type="password"] { width: 100%; min-height: 38px; border-radius: var(--pill); border: 1px solid transparent; background: var(--input); color: var(--ink); font: inherit; padding: 8px 14px; transition: border-color .15s; }

@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="app.css?v=7">
+<link rel="stylesheet" href="app.css?v=8">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -182,13 +182,26 @@
       <div>
         <p class="eyebrow">Setup</p>
         <h1 id="menu-h">Weekly menu</h1>
-        <p class="muted small">Pick what's served each day and set the standard serving size. The station uses these to work out how much was wasted.</p>
+        <p class="muted small">Pick what's served each day. A category can have more than one food, like two fruits or a regular and a veg main. Students usually take one food from each category.</p>
       </div>
     </div>
     <div class="dash-grid">
-      <div class="card span-2">
+      <div class="card span-3">
         <div class="card-head"><h2>Menu by day</h2></div>
         <div class="table-wrap"><table class="menu-table" id="week-table"></table></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h2>Categories</h2></div>
+        <p class="muted small">Rename a category by typing over it. New categories show up as a new row in the menu.</p>
+        <div class="serving-list" id="cat-list"></div>
+        <form class="add-item" id="add-cat-form">
+          <label for="new-cat">Add a category</label>
+          <div class="add-row cat-add">
+            <input id="new-cat" type="text" placeholder="e.g. Dessert" autocomplete="off">
+            <button class="btn primary" type="submit">Add</button>
+          </div>
+          <p class="field-error" id="cat-error" hidden></p>
+        </form>
       </div>
       <div class="card">
         <div class="card-head"><h2>Serving sizes</h2></div>
@@ -268,6 +281,6 @@
 <div id="tooltip" role="tooltip" hidden></div>
 <div id="toast" role="status" aria-live="polite" hidden></div>
 <canvas id="grab" hidden></canvas>
-<script src="app.js?v=11"></script>
+<script src="app.js?v=12"></script>
 </body>
 </html>
