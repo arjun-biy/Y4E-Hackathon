@@ -1,0 +1,28 @@
+{
+  "_note": "Standard serving size in grams for each item. Edit this to match your cafeteria.",
+  "empty_tray_grams": 350,
+  "items": {
+    "Cheese pizza": 140,
+    "Chicken tacos": 160,
+    "Fish sticks": 120,
+    "Bean and cheese burrito": 200,
+    "Spaghetti with marinara": 220,
+    "Chicken nuggets": 110,
+    "Steamed broccoli": 80,
+    "Green salad": 70,
+    "Corn": 90,
+    "Carrot sticks": 60,
+    "Apple": 150,
+    "Orange slices": 100,
+    "Milk": 240
+  },
+  "weekly_menu": {
+    "Monday": ["Cheese pizza", "Green salad", "Apple", "Milk"],
+    "Tuesday": ["Chicken tacos", "Corn", "Orange slices", "Milk"],
+    "Wednesday": ["Fish sticks", "Steamed broccoli", "Apple", "Milk"],
+    "Thursday": ["Bean and cheese burrito", "Carrot sticks", "Orange slices", "Milk"],
+    "Friday": ["Spaghetti with marinara", "Steamed broccoli", "Apple", "Milk"],
+    "Saturday": ["Chicken nuggets", "Corn", "Apple", "Milk"],
+    "Sunday": ["Chicken nuggets", "Carrot sticks", "Apple", "Milk"]
+  }
+}

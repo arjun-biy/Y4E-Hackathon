@@ -1,0 +1,14 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Start food waste app",
+      "type": "shell",
+      "command": "[ -d node_modules ] || npm install; open http://localhost:8100/index.html; python3 -m http.server 8100",
+      "options": { "cwd": "${workspaceFolder}/food-waste-app" },
+      "isBackground": true,
+      "problemMatcher": [],
+      "group": { "kind": "build", "isDefault": true }
+    }
+  ]
+}

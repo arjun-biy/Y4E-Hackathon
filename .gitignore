@@ -1,0 +1,11 @@
+.DS_Store
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+_old/
+*.HEIC
+*.blend1
+food-waste-station/food_waste.db
+food-waste-station/photos/
+.claude/

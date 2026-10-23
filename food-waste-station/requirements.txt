@@ -1,0 +1,12 @@
+# Needed everywhere (laptop or Raspberry Pi)
+streamlit
+pandas
+altair
+
+# Only for real food recognition with Claude (RECOGNIZER=claude)
+anthropic
+
+# Only on the Raspberry Pi with real hardware (STATION_MODE=hardware)
+# hx711
+# opencv-python    # only if you use a USB webcam instead of the Pi camera
+# gpiozero and picamera2 come pre-installed on Raspberry Pi OS

@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tray Return Tracker</title>
+<meta name="description" content="A $50 station at the school tray return that shows the kitchen which food gets thrown away, and what to change.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap">
+<link rel="stylesheet" href="start.css?v=4">
+</head>
+<body>
+
+<header class="nav">
+  <a class="mark" href="#intro">Tray Return Tracker</a>
+  <nav aria-label="Sections">
+    <a href="#intro" class="active">Intro</a>
+    <a href="#problem">Problem</a>
+    <a href="#how">How it works</a>
+    <a href="#savings">Savings</a>
+  </nav>
+  <a class="ghost-pill" href="app.html">Open the app</a>
+</header>
+<div class="side-label" aria-hidden="true">TRT-01 · Cafeteria model</div>
+
+<main>
+  <!-- 1. HERO -->
+  <section class="hero" id="intro">
+    <div class="hero-copy">
+      <p class="tagline">Made for lunch lines, built for kitchens.</p>
+      <h1 class="wordmark" aria-label="Tray Return Tracker">
+        <span class="line">Tray</span>
+        <span class="line">Return</span>
+        <span class="line">Tracker</span>
+      </h1>
+    </div>
+    <div class="stage hero-stage" id="hero-stage" aria-hidden="true">
+      <div class="hero-float"><img class="hero-img" src="img/start/hero.png" alt="" fetchpriority="high"></div>
+      <img class="crumb" src="img/corn.png" alt="" style="--x:8%;--y:14%;--w:16%">
+      <img class="crumb" src="img/carrot-sticks.png" alt="" style="--x:74%;--y:6%;--w:15%">
+      <img class="crumb" src="img/orange-slices.png" alt="" style="--x:82%;--y:70%;--w:17%">
+      <img class="crumb" src="img/chicken-nuggets.png" alt="" style="--x:2%;--y:68%;--w:14%">
+      <img class="crumb" src="img/fish-sticks.png" alt="" style="--x:40%;--y:0%;--w:13%">
+    </div>
+    <div class="info-card">
+      <p class="label">A $50 station at the tray return.</p>
+      <hr>
+      <p>A scale and a camera look at what comes back on every tray, so the kitchen knows what to cook less of.</p>
+    </div>
+    <div class="scroll-cue" aria-hidden="true"><span>Scroll</span><i></i></div>
+  </section>
+
+  <!-- 2. PROBLEM (pinned) -->
+  <section class="pin" id="problem">
+    <div class="pin-inner three-col">
+      <div class="col-left">
+        <p class="label">The problem</p>
+        <h2 class="heading">Nearly one in three school meals ends up in the trash.</h2>
+      </div>
+      <div class="stage" id="problem-stage" aria-hidden="true">
+        <div class="scene prob-scene">
+        <div class="tray-stack" id="prob-tray">
+          <img src="img/start/tray.png" alt="">
+          <img class="food" data-food="main" src="img/start/food-main.png" alt="" style="--ox:36%;--oy:58%">
+          <img class="food" data-food="broc" src="img/start/food-tr.png" alt="" style="--ox:72%;--oy:48%">
+          <img class="food" data-food="apple" src="img/start/food-br.png" alt="" style="--ox:72%;--oy:66%">
+        </div>
+          <img class="bin" id="bin" src="img/start/bin.png" alt="">
+        </div>
+      </div>
+      <div class="col-right">
+        <p class="body">US schools throw away an estimated</p>
+        <div class="stat" data-stat="530000"><span class="num">0</span><span class="unit">tons of food a year</span></div>
+        <hr>
+        <div class="stat" data-stat="39"><span class="num">0</span><span class="unit">pounds per student, per year</span></div>
+        <hr>
+        <div class="stat" data-stat="1.7" data-prefix="$" data-suffix="B" data-dec="1"><span class="num">0</span><span class="unit">spent on food that gets thrown out</span></div>
+        <p class="note">Milk and dairy are almost 30% of it.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. HOW IT WORKS (pinned) -->
+  <section class="pin pin-long" id="how">
+    <div class="pin-inner three-col">
+      <div class="col-left steps">
+        <p class="label">How it works</p>
+        <div class="step" data-step="0">
+          <span class="step-no">01 / 03</span>
+          <h2 class="heading">Weigh the tray.</h2>
+        </div>
+        <div class="step" data-step="1">
+          <span class="step-no">02 / 03</span>
+          <h2 class="heading">See what's left.</h2>
+        </div>
+        <div class="step" data-step="2">
+          <span class="step-no">03 / 03</span>
+          <h2 class="heading">Fix the menu.</h2>
+        </div>
+      </div>
+      <div class="stage" id="how-stage" aria-hidden="true">
+        <div class="scene how-scene">
+          <img src="img/start/scale.png" alt="">
+          <div class="readout"><span>Scale</span><b id="readout">0000 g</b></div>
+        <div class="tray-stack" id="how-tray">
+          <img src="img/start/tray.png" alt="">
+          <img class="food" data-food="main" src="img/start/food-main.png" alt="" style="--ox:36%;--oy:58%">
+          <img class="food" data-food="broc" src="img/start/food-tr.png" alt="" style="--ox:72%;--oy:48%">
+          <img class="food" data-food="apple" src="img/start/food-br.png" alt="" style="--ox:72%;--oy:66%">
+        </div>
+          <div class="scan-plane" id="scan"></div>
+        </div>
+      </div>
+      <div class="col-right steps">
+        <p class="body step" data-step="0">Students drop their tray where they already do. A load cell under the plate weighs what's left, in grams.</p>
+        <p class="body step" data-step="1">A camera above the tray works out which foods came back. Broccoli? Half the milk? It never looks at faces or names.</p>
+        <p class="body step" data-step="2">The kitchen gets plain suggestions: a smaller side of broccoli, a share table for apples, milk as a choice.</p>
+        <div class="progress" aria-hidden="true"><i></i></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. SAVINGS -->
+  <section class="savings" id="savings">
+    <div class="savings-head">
+      <p class="label">Savings</p>
+      <h2 class="heading big">What one school saves.</h2>
+      <p class="body">Move the slider to match your school. We use the national average of 39 pounds per student and the 19% cut that real tray-scanning pilots reached.</p>
+    </div>
+    <div class="calc">
+      <div class="calc-input">
+        <label for="students" class="label">Students eating lunch</label>
+        <div class="students-row">
+          <output id="students-out" for="students">600</output>
+          <input id="students" type="range" min="100" max="3000" step="50" value="600">
+        </div>
+      </div>
+      <div class="calc-results">
+        <div class="result"><span class="label">Food thrown away now</span><span class="r-num" id="r-waste">0</span><span class="r-unit">pounds a year</span></div>
+        <div class="result"><span class="label">Food saved</span><span class="r-num" id="r-saved">0</span><span class="r-unit">pounds a year</span></div>
+        <div class="result accent"><span class="label">Money saved</span><span class="r-num" id="r-money">$0</span><span class="r-unit">dollars a year</span></div>
+        <div class="result"><span class="label">Lunches not wasted</span><span class="r-num" id="r-meals">0</span><span class="r-unit">at about a pound each</span></div>
+      </div>
+      <div class="stage carton-stage" id="carton-stage" aria-hidden="true">
+        <img class="carton" id="carton" src="img/milk.png" alt="">
+        <div class="saved-grid" id="saved-grid"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. PRIVACY -->
+  <section class="privacy" id="privacy">
+    <p class="label">Privacy</p>
+    <h2 class="huge" id="privacy-line">Tracks food.<br>Not students.</h2>
+    <p class="body">No faces, no names, no student IDs. The station only records the menu item, how much came back, and an optional anonymous button press.</p>
+  </section>
+
+  <!-- 6. CTA -->
+  <section class="cta" id="start">
+    <h2 class="heading big">Try the station.</h2>
+    <p class="body">It runs in your browser with four weeks of sample lunches already loaded.</p>
+    <div class="cta-row">
+      <a class="pill" href="app.html#station">Open the station</a>
+      <a class="ghost-pill" href="app.html#dashboard">See the dashboard</a>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <p class="credit">Built for the Y4E Hackathon</p>
+  <hr>
+  <p class="sources">Sources: World Wildlife Fund, Food Waste Warriors (2019) for national totals, pounds per student, cost and the dairy share. University of Georgia Dining Services, Raccoon Eyes pilot (2025), for the 19% plate-waste cut. Money saved uses about $1.60 per pound ($1.7 billion ÷ 530,000 tons).</p>
+</footer>
+
+<script type="module" src="start.js?v=3"></script>
+</body>
+</html>
