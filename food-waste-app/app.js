@@ -107,9 +107,9 @@ const GROQ_MODELS = ["qwen/qwen3.8-27b", "meta-llama/llama-4-scout-17b-16e-instr
 // The key says which AI it's for: Groq keys start with gsk_, Gemini keys with AIza
 const aiName = () => state.settings.apiKey.startsWith("gsk_") ? "Groq" : "Gemini";
 const scanPrompt = items => `This is a photo of a school lunch tray after a student finished eating. The tray was served with: ${items.join(", ")}.
-First decide if a lunch tray, plate or food is actually visible in the photo.
+First describe in a few words what the photo shows. Any tray, plate, bowl, lunchbox, wrapper or food counts as the tray; set tray_visible to false only if there is no food or dishware at all.
 Then, for each served item, estimate what fraction of the original serving is still left (0 = fully eaten or not on the tray, 1 = untouched).
-Reply with JSON only, like {"tray_visible": true, "left": {"Item name": 0.4}}, using each item name exactly as given.`;
+Reply with JSON only, like {"seen": "a plate with half a pizza and an apple", "tray_visible": true, "left": {"Item name": 0.4}}, using each item name exactly as given.`;
 
 async function post(url, headers, body) {
   try {
@@ -168,7 +168,7 @@ async function aiEstimate(items, jpegBase64) {
   let json;
   try { json = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1)); }
   catch (e) { throw new Error(`${aiName()}'s answer didn't make sense. Scan again.`); }
-  if (json.tray_visible === false) throw new Error(`${aiName()} couldn't see a tray. Hold the tray in front of the camera and scan again.`);
+  if (json.tray_visible === false) throw new Error(`${aiName()} couldn't see any food${json.seen ? ` (it saw: ${json.seen})` : ""}. Hold the plate or tray up in front of the camera and scan again.`);
   const left = json.left || json;
   return items.map(it => Math.min(1, Math.max(0, Number(left[it]) || 0)));
 }
