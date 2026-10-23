@@ -61,7 +61,7 @@ function freshState() {
     week: JSON.parse(JSON.stringify(DEFAULT_WEEK)),
     lists: [],
     trays: [],
-    settings: { recognizer: "gemini", apiKey: "", model: DEFAULT_MODEL, emptyTray: 350, v: 2 },
+    settings: { recognizer: "gemini", apiKey: "", model: "", emptyTray: 350, v: 2 },  // recognizer "gemini" = real AI scan (Gemini or Groq)
     theme: null
   };
 }
@@ -71,7 +71,7 @@ function load() {
     if (raw) {
       state = Object.assign(freshState(), JSON.parse(raw));
       // v1 used Claude: switch saved settings to Gemini real scans
-      if (state.settings.v !== 2) Object.assign(state.settings, { recognizer: "gemini", apiKey: "", model: DEFAULT_MODEL, v: 2 });
+      if (state.settings.v !== 2) Object.assign(state.settings, { recognizer: "gemini", apiKey: "", model: "", v: 2 });
       return true;
     }
   } catch (e) { /* storage blocked or corrupt */ }
@@ -102,43 +102,73 @@ function mockEstimate(items) {
   });
 }
 const DEFAULT_MODEL = "gemini-flash-latest";  // Google's alias for the newest Flash model
-async function geminiEstimate(items, jpegBase64) {
-  const { apiKey, model } = state.settings;
-  let res;
-  try { res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model || DEFAULT_MODEL)}:generateContent`, {
-    method: "POST",
-    signal: AbortSignal.timeout(30000),
-    headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
-    body: JSON.stringify({
-      contents: [{ parts: [
-        { inline_data: { mime_type: "image/jpeg", data: jpegBase64 } },
-        { text: `This is a photo of a school lunch tray after a student finished eating. The tray was served with: ${items.join(", ")}.
+// Groq vision models, newest first; the next one is tried if Groq has retired a model
+const GROQ_MODELS = ["qwen/qwen3.8-27b", "meta-llama/llama-4-scout-17b-16e-instruct"];
+// The key says which AI it's for: Groq keys start with gsk_, Gemini keys with AIza
+const aiName = () => state.settings.apiKey.startsWith("gsk_") ? "Groq" : "Gemini";
+const scanPrompt = items => `This is a photo of a school lunch tray after a student finished eating. The tray was served with: ${items.join(", ")}.
 First decide if a lunch tray, plate or food is actually visible in the photo.
 Then, for each served item, estimate what fraction of the original serving is still left (0 = fully eaten or not on the tray, 1 = untouched).
-Reply with JSON only, like {"tray_visible": true, "left": {"Item name": 0.4}}, using each item name exactly as given.` }
-      ] }],
-      generationConfig: { responseMimeType: "application/json", temperature: 0 }
-    })
-  }); } catch (e) {
-    console.error("Gemini request failed", e);
-    if (e.name === "TimeoutError") throw new Error("Gemini didn't answer in 30 seconds. A school Chrome profile or school Wi-Fi may be blocking it. Try a personal Chrome profile or another network.");
-    throw new Error("Couldn't reach Gemini. Check the internet. A school Chrome profile, extension or Wi-Fi may be blocking it, so try a personal Chrome profile.");
+Reply with JSON only, like {"tray_visible": true, "left": {"Item name": 0.4}}, using each item name exactly as given.`;
+
+async function post(url, headers, body) {
+  try {
+    return await fetch(url, { method: "POST", signal: AbortSignal.timeout(30000), headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(body) });
+  } catch (e) {
+    console.error(`${aiName()} request failed`, e);
+    if (e.name === "TimeoutError") throw new Error(`${aiName()} didn't answer in 30 seconds. Something on this computer or network may be blocking it.`);
+    throw new Error(`Couldn't reach ${aiName()}. Check the internet. Screen Time, a school Chrome profile or the Wi-Fi may be blocking it.`);
   }
+}
+async function errorDetail(res) {
+  try { return (await res.json()).error?.message || ""; } catch (e) { return ""; }
+}
+
+async function geminiText(items, jpegBase64) {
+  const { apiKey, model } = state.settings;
+  const m = model.startsWith("gemini") ? model : DEFAULT_MODEL;
+  const res = await post(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent`, { "x-goog-api-key": apiKey }, {
+    contents: [{ parts: [{ inline_data: { mime_type: "image/jpeg", data: jpegBase64 } }, { text: scanPrompt(items) }] }],
+    generationConfig: { responseMimeType: "application/json", temperature: 0 }
+  });
   if (!res.ok) {
-    let detail = "";
-    try { detail = (await res.json()).error?.message || ""; } catch (e) {}
+    const detail = await errorDetail(res);
     if (res.status === 400 && /api key/i.test(detail)) throw new Error("Gemini says the API key isn't valid. Check it in Settings.");
     if (res.status === 403) throw new Error("Gemini refused the key (403). Make a new key at aistudio.google.com/apikey and paste it in Settings.");
-    if (res.status === 404) throw new Error(`Gemini doesn't have a model called "${model}". Set the model in Settings back to ${DEFAULT_MODEL}.`);
+    if (res.status === 404) throw new Error(`Gemini doesn't have a model called "${m}". Clear the Model box in Settings.`);
     if (res.status === 429) throw new Error("Gemini's free limit is used up for now. Wait a minute and scan again.");
     throw new Error(`Gemini returned an error (${res.status}). ${detail}`);
   }
   const data = await res.json();
-  const text = data.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
+  return data.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
+}
+
+async function groqText(items, jpegBase64) {
+  const { apiKey, model } = state.settings;
+  const models = [...new Set([model, ...GROQ_MODELS].filter(m => m && !m.startsWith("gemini")))];
+  for (const m of models) {
+    const res = await post("https://api.groq.com/openai/v1/chat/completions", { authorization: `Bearer ${apiKey}` }, {
+      model: m, temperature: 0, max_completion_tokens: 600, response_format: { type: "json_object" },
+      messages: [{ role: "user", content: [
+        { type: "text", text: scanPrompt(items) },
+        { type: "image_url", image_url: { url: `data:image/jpeg;base64,${jpegBase64}` } }
+      ] }]
+    });
+    if (res.ok) return (await res.json()).choices?.[0]?.message?.content || "";
+    const detail = await errorDetail(res);
+    if (res.status === 401) throw new Error("Groq says the API key isn't valid. Check it in Settings.");
+    if (res.status === 429) throw new Error("Groq's free limit is used up for now. Wait a minute and scan again.");
+    if ((res.status === 404 || /model/i.test(detail)) && m !== models[models.length - 1]) continue;  // retired model, try the next
+    throw new Error(`Groq returned an error (${res.status}). ${detail}`);
+  }
+}
+
+async function aiEstimate(items, jpegBase64) {
+  const text = aiName() === "Groq" ? await groqText(items, jpegBase64) : await geminiText(items, jpegBase64);
   let json;
   try { json = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1)); }
-  catch (e) { throw new Error("Gemini's answer didn't make sense. Scan again."); }
-  if (json.tray_visible === false) throw new Error("Gemini couldn't see a tray. Hold the tray in front of the camera and scan again.");
+  catch (e) { throw new Error(`${aiName()}'s answer didn't make sense. Scan again.`); }
+  if (json.tray_visible === false) throw new Error(`${aiName()} couldn't see a tray. Hold the tray in front of the camera and scan again.`);
   const left = json.left || json;
   return items.map(it => Math.min(1, Math.max(0, Number(left[it]) || 0)));
 }
@@ -299,7 +329,7 @@ function castVote(v) {
 function updateChip() {
   const real = state.settings.recognizer === "gemini";
   $("ai-chip").className = "chip" + (real ? " solid" : "");
-  $("ai-chip").textContent = real ? (state.settings.apiKey ? "Gemini real scan" : "Gemini: add key in Settings") : "Demo mode";
+  $("ai-chip").textContent = real ? (state.settings.apiKey ? `${aiName()} real scan` : "Real scan: add key in Settings") : "Demo mode";
   if ($("empty-g")) $("empty-g").textContent = state.settings.emptyTray;  // gone once a scan fills in scale-meta
 }
 
@@ -362,7 +392,7 @@ async function scanTray() {
   if (busy) return;
   const items = state.week[menuDay];
   const useAI = state.settings.recognizer === "gemini";
-  if (useAI && !state.settings.apiKey) { setStatus("Paste your free Gemini API key in Settings first (or switch to Demo mode).", true); return; }
+  if (useAI && !state.settings.apiKey) { setStatus("Paste your free Gemini or Groq API key in Settings first (or switch to Demo mode).", true); return; }
   const weighRaw = $("weigh").value.trim(), reading = weighRaw === "" ? null : Math.round(+weighRaw);
   if (reading != null && !(reading >= 0 && reading <= 5000)) { setStatus("Scale reading should be between 0 and 5000 grams.", true); return; }
   if (reading != null && reading < state.settings.emptyTray) { setStatus(`That's lighter than an empty tray (${state.settings.emptyTray} g). Check the reading or the empty tray weight in Settings.`, true); return; }
@@ -380,13 +410,13 @@ async function scanTray() {
   if (stream) { photo = grabPhoto(); $("snapshot").src = photo.url; $("snapshot").hidden = false; $("tray-frame").classList.remove("pip"); }
   else if (uploaded) photo = uploaded;
   $("scan-line").hidden = false;
-  setStatus(useAI ? "Gemini is looking at what's left on the tray..." : "Scanning tray...");
+  setStatus(useAI ? `${aiName()} is looking at what's left on the tray...` : "Scanning tray...");
 
   let fracs;
   const t0 = Date.now();
-  const ticker = useAI && setInterval(() => setStatus(`Gemini is looking at what's left on the tray... ${Math.round((Date.now() - t0) / 1000)}s`), 1000);
+  const ticker = useAI && setInterval(() => setStatus(`${aiName()} is looking at what's left on the tray... ${Math.round((Date.now() - t0) / 1000)}s`), 1000);
   try {
-    if (useAI) fracs = await geminiEstimate(items, photo.b64);
+    if (useAI) fracs = await aiEstimate(items, photo.b64);
     else { await new Promise(r => setTimeout(r, reduceMotion ? 50 : 900)); fracs = mockEstimate(items); }
   } catch (e) {
     clearInterval(ticker);
@@ -673,9 +703,9 @@ function renderSettings() {
   $("data-summary").textContent = `${fmtInt(state.trays.length)} trays saved (${fmtInt(sample)} sample, ${fmtInt(state.trays.length - sample)} scanned by you).`;
   $("confirm").hidden = true;
 }
-document.querySelectorAll('input[name="recognizer"]').forEach(r => r.onchange = () => { state.settings.recognizer = r.value; save(); updateChip(); toast(r.value === "gemini" ? "Using Gemini real scans" : "Using Demo mode"); });
+document.querySelectorAll('input[name="recognizer"]').forEach(r => r.onchange = () => { state.settings.recognizer = r.value; save(); updateChip(); toast(r.value === "gemini" ? "Using real AI scans" : "Using Demo mode"); });
 $("api-key").onchange = () => { state.settings.apiKey = $("api-key").value.trim(); save(); updateChip(); toast("API key saved"); };
-$("model").onchange = () => { state.settings.model = $("model").value.trim() || DEFAULT_MODEL; $("model").value = state.settings.model; save(); };
+$("model").onchange = () => { state.settings.model = $("model").value.trim(); save(); };
 $("empty-tray").onchange = () => {
   const v = Math.round(+$("empty-tray").value);
   if (!(v >= 0 && v <= 3000)) { $("empty-tray").value = state.settings.emptyTray; toast("Enter a weight between 0 and 3000 grams"); return; }
