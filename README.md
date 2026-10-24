@@ -1,3 +1,5 @@
+<img src="food-waste-app/logo.svg" alt="Tray Return Tracker logo" width="96">
+
 # Y4E Hackathon
 
 Everything for the hackathon lives here: Documents > Y4E Hackathon.
