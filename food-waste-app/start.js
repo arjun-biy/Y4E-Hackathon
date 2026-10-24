@@ -1,5 +1,6 @@
 // start page. images come from design-system/start-page-scenes.blend, motion is anime.js
-import { animate, createTimeline, onScroll, stagger, splitText, utils } from "./node_modules/animejs/dist/modules/index.js";
+// anime.js 4.5.0, copied in so the site works on github pages without npm
+import { animate, createTimeline, onScroll, stagger, splitText, utils } from "./lib/anime.esm.min.js";
 
 const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const narrow = () => innerWidth <= 860;

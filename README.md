@@ -22,9 +22,13 @@ The first time, macOS might say the file is from an "unidentified developer." Ri
 
 **In VS Code:** open this folder and press **Cmd+Shift+B** to run the **Start food waste app** task.
 
-**From a fresh clone:** you need Python 3 and Node. The launcher and the VS Code task run `npm install` the first time to grab anime.js.
+**From a fresh clone:** all you need is Python 3. There's nothing to install.
 
-Always open it through localhost. The camera and the start page animations don't work if you just double-click an HTML file.
+Always open it through localhost (or the live site below). The camera and the start page animations don't work if you just double-click an HTML file.
+
+## Live site
+
+It's a static site, so it runs on GitHub Pages as is. In the repo go to **Settings > Pages**, set **Source** to **Deploy from a branch**, pick **main** and **/(root)**, and save. After a minute it's live at `https://<your-username>.github.io/<repo-name>/`. The camera works there too, since Pages uses https.
 
 ## Using the app
 
@@ -41,7 +45,7 @@ Always open it through localhost. The camera and the start page animations don't
 
 | Folder | What it is |
 |---|---|
-| `food-waste-app/` | The website. `index.html`, `start.css` and `start.js` are the start page. `app.html`, `app.css` and `app.js` are the app. `server.py` serves it locally. |
+| `food-waste-app/` | The website. `index.html`, `start.css` and `start.js` are the start page. `app.html`, `app.css` and `app.js` are the app. `lib/` has anime.js for the start page animations. `server.py` serves it locally. |
 | `food-waste-app/img/` | Pictures for the start page |
 | `food-waste-station/` | Python version for a Raspberry Pi with a real load cell, camera and vote buttons. See its own README. |
 | `design-system/` | Design notes and the Blender files for the start page scenes |
