@@ -1,8 +1,5 @@
-"""Reads the weight on the tray platform.
-
-HardwareScale: real load cell + HX711 board on a Raspberry Pi.
-SimulatedScale: pretend scale for testing on any computer.
-"""
+# HardwareScale = load cell + HX711 on the pi
+# SimulatedScale = fake one so the station runs on a laptop
 import random
 import time
 
@@ -28,9 +25,8 @@ class HardwareScale:
         return max(0.0, float(value))
 
 
+# wobbles for a couple of reads then settles, like a real tray landing
 class SimulatedScale:
-    """Pretends a tray is placed, sits still, then is lifted off."""
-
     def __init__(self):
         self._tray_weight = None
         self._ticks = 0
@@ -54,8 +50,8 @@ def get_scale():
     return HardwareScale() if config.MODE == "hardware" else SimulatedScale()
 
 
+# need STABLE_READINGS close readings in a row before we trust the weight
 def wait_for_stable_tray(scale, poll_seconds=0.2):
-    """Wait until a tray is on the scale and the reading stops wobbling."""
     readings = []
     while True:
         grams = scale.read_grams()

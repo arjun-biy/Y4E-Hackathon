@@ -1,4 +1,4 @@
-"""Turns the waste data into simple suggestions for the kitchen."""
+# rules of thumb that turn the waste numbers into tips for the kitchen
 import pandas as pd
 
 VEGETABLES = {"Steamed broccoli", "Green salad", "Corn", "Carrot sticks"}
@@ -24,8 +24,8 @@ def item_waste_table(conn):
     return df.sort_values("waste_pct", ascending=False).reset_index(drop=True)
 
 
+# top complaint on trays where this item was mostly left over
 def vote_reasons_by_item(conn):
-    """Which complaint shows up most on days each item was served."""
     df = pd.read_sql_query(
         """SELECT DISTINCT l.item, v.reason, v.id
            FROM votes v JOIN trays t ON t.id = v.tray_id

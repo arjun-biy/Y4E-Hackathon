@@ -1,4 +1,4 @@
-"""Serves the app on localhost with browser caching off, so a normal reload always gets the latest files."""
+# plain http.server, but with caching off so a normal reload picks up edits
 import http.server
 import sys
 

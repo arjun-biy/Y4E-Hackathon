@@ -1,7 +1,4 @@
-"""Cafeteria staff dashboard.
-
-Run:  streamlit run dashboard.py
-"""
+# kitchen dashboard:  streamlit run dashboard.py
 import altair as alt
 import pandas as pd
 import streamlit as st

@@ -1,9 +1,6 @@
-"""Run once on the Raspberry Pi to calibrate the load cell.
-
-1. Leave the platform empty and run:  python calibrate_scale.py
-2. When asked, put an object with a known weight on it (a full 500 ml water bottle is about 520 g).
-3. Copy the number it prints into SCALE_REFERENCE_UNIT in config.py.
-"""
+# one-time load cell calibration, run it on the pi with the platform empty.
+# a full 500 ml water bottle is ~520 g if you don't have a known weight.
+# paste the number it prints into SCALE_REFERENCE_UNIT in config.py
 from hx711 import HX711
 
 import config

@@ -1,4 +1,4 @@
-"""Settings for the food waste station. Change these to fit your setup."""
+# station settings, tweak for your setup
 import json
 import os
 from datetime import date
@@ -45,8 +45,7 @@ def load_menu():
         return json.load(f)
 
 
-def todays_items(day=None):
-    """Menu items served on a given day (defaults to today)."""
+def todays_items(day=None):  # day defaults to today
     menu = load_menu()
     day = day or date.today()
     return menu["weekly_menu"][day.strftime("%A")]

@@ -1,11 +1,11 @@
-"""Collects the optional student vote after a tray is weighed."""
+# optional "why did you leave food?" vote
 import time
 
 import config
 
 
-def ask_vote_hardware():
-    """Waits for one of the arcade buttons to be pressed (or times out)."""
+# arcade buttons on the pi; gives up after VOTE_TIMEOUT_SECONDS
+def ask_vote_buttons():
     from gpiozero import Button  # pre-installed on Raspberry Pi OS
 
     buttons = {pin: Button(pin) for pin in config.VOTE_BUTTONS}
@@ -22,7 +22,7 @@ def ask_vote_hardware():
             button.close()
 
 
-def ask_vote_keyboard():
+def ask_vote_kb():
     reasons = list(config.VOTE_BUTTONS.values())
     print("  Why did you leave food? (optional)")
     for i, reason in enumerate(reasons, 1):
@@ -34,4 +34,4 @@ def ask_vote_keyboard():
 
 
 def ask_vote():
-    return ask_vote_hardware() if config.MODE == "hardware" else ask_vote_keyboard()
+    return ask_vote_buttons() if config.MODE == "hardware" else ask_vote_kb()

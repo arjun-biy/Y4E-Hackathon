@@ -1,8 +1,5 @@
-"""Fills the database with 4 weeks of realistic pretend data, so the dashboard has something to show.
-
-python seed_data.py            # adds 4 weeks of school days
-python seed_data.py --reset    # deletes old data first
-"""
+# fake a few weeks of lunches so the dashboard isn't empty
+#   python seed_data.py [--reset] [--weeks N]
 import argparse
 import random
 from datetime import date, datetime, timedelta

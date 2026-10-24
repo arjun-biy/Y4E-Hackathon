@@ -1,8 +1,4 @@
-"""Saves every tray and vote in a small local database (SQLite).
-
-No student names or IDs are ever stored: only food, weights and votes.
-"""
-import json
+# sqlite storage. only food, weights and votes - nothing that identifies a kid
 import sqlite3
 from datetime import datetime
 
@@ -43,7 +39,7 @@ def connect():
 
 
 def save_tray(conn, served_date, total_leftover_grams, leftovers, photo_path=None, timestamp=None):
-    """leftovers: list of dicts with item, served_grams, fraction_left."""
+    # leftovers = [{"item", "served_grams", "fraction_left"}, ...]
     timestamp = timestamp or datetime.now().isoformat(timespec="seconds")
     cur = conn.execute(
         "INSERT INTO trays (timestamp, served_date, total_leftover_grams, photo_path) VALUES (?, ?, ?, ?)",
@@ -67,11 +63,3 @@ def save_vote(conn, served_date, reason, tray_id=None, timestamp=None):
         (tray_id, timestamp, served_date, reason),
     )
     conn.commit()
-
-
-def export_json(conn):
-    """Handy for debugging: dump everything as JSON."""
-    trays = [dict(r) for r in conn.execute("SELECT * FROM trays")]
-    leftovers = [dict(r) for r in conn.execute("SELECT * FROM leftovers")]
-    votes = [dict(r) for r in conn.execute("SELECT * FROM votes")]
-    return json.dumps({"trays": trays, "leftovers": leftovers, "votes": votes}, indent=2)

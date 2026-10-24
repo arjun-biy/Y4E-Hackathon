@@ -1,9 +1,6 @@
-"""The tray-return station: weigh -> photo -> recognize leftovers -> save -> ask for a vote.
-
-Run on a laptop (simulated):      python station.py
-Auto-run 20 simulated trays:      python station.py --trays 20
-Run on the Raspberry Pi:          STATION_MODE=hardware python station.py
-"""
+# tray return loop: weigh -> photo -> guess leftovers -> save -> ask for a vote
+#   laptop:  python station.py        (or --trays 20 to auto-run)
+#   pi:      STATION_MODE=hardware python station.py
 import argparse
 import random
 from datetime import date
@@ -16,8 +13,8 @@ from scale import get_scale, wait_for_stable_tray, wait_for_tray_removed
 from votes import ask_vote
 
 
-def match_to_scale(fractions, served, measured_leftover_grams):
-    """Nudge the AI's guesses so they add up to what the scale actually measured."""
+# trust the scale over the AI, but never correct by more than 2x
+def fit_to_scale(fractions, served, measured_leftover_grams):
     estimated = sum(fractions[i] * served[i] for i in fractions)
     if estimated <= 0 or measured_leftover_grams <= 0:
         return fractions
@@ -25,14 +22,14 @@ def match_to_scale(fractions, served, measured_leftover_grams):
     return {i: round(min(1.0, f * factor), 2) for i, f in fractions.items()}
 
 
-def process_tray(conn, scale, recognizer, menu, items, served_date, auto=False):
+def handle_tray(conn, scale, recognizer, menu, items, served_date, auto=False):
     served = {item: menu["items"][item] for item in items}
     empty_tray = menu["empty_tray_grams"]
 
     if config.MODE != "hardware":
-        # Pretend a student drops off a tray with some leftovers on it.
-        pretend = recognizer.estimate(None, items)
-        leftover = sum(pretend[i] * served[i] for i in items)
+        # no real scale here, so fake a tray landing on it
+        fake = recognizer.estimate(None, items)
+        leftover = sum(fake[i] * served[i] for i in items)
         scale.place_tray(empty_tray + leftover)
 
     print("Waiting for a tray...")
@@ -43,8 +40,8 @@ def process_tray(conn, scale, recognizer, menu, items, served_date, auto=False):
     if config.MODE == "hardware" or config.RECOGNIZER == "claude":
         fractions = recognizer.estimate(photo, items)
     else:
-        fractions = pretend
-    fractions = match_to_scale(fractions, served, measured_leftover)
+        fractions = fake
+    fractions = fit_to_scale(fractions, served, measured_leftover)
 
     leftovers = [{"item": i, "served_grams": served[i], "fraction_left": fractions[i]} for i in items]
     tray_id = db.save_tray(conn, served_date, round(measured_leftover, 1), leftovers, photo)
@@ -86,14 +83,14 @@ def main():
 
     if args.trays:
         for _ in range(args.trays):
-            process_tray(conn, scale, recognizer, menu, items, served_date, auto=True)
+            handle_tray(conn, scale, recognizer, menu, items, served_date, auto=True)
         return
 
     try:
         while True:
             if config.MODE != "hardware":
                 input("Press Enter to drop off a pretend tray (Ctrl+C to quit)...")
-            process_tray(conn, scale, recognizer, menu, items, served_date)
+            handle_tray(conn, scale, recognizer, menu, items, served_date)
     except KeyboardInterrupt:
         print("\nStation stopped.")
 

@@ -1,4 +1,4 @@
-/* Start page: food and tray images rendered in Blender (design-system/start-page-scenes.blend) + anime.js scroll animations. */
+// start page. images come from design-system/start-page-scenes.blend, motion is anime.js
 import { animate, createTimeline, onScroll, stagger, splitText, utils } from "./node_modules/animejs/dist/modules/index.js";
 
 const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -21,7 +21,7 @@ const savedCubes = Array.from({ length: 14 }, (_, i) => {
   return im;
 });
 
-/* ---------- ANIMATION ---------- */
+// --- animations
 const fmt = n => Math.round(n).toLocaleString();
 
 if (!reduce) {
@@ -125,7 +125,7 @@ if (!reduce) {
   readoutB.textContent = "0586 g";
 }
 
-/* ---------- Savings calculator ---------- */
+// --- savings calculator
 const LB_PER_STUDENT = 39, CUT = .19, DOLLARS_PER_LB = 1.7e9 / (530000 * 2000);
 const slider = document.getElementById("students"), out = document.getElementById("students-out");
 const shown = { waste: 0, saved: 0, money: 0, meals: 0 };
@@ -159,7 +159,7 @@ if (!reduce) {
   onScroll({ target: ".calc", enter: "bottom-=10% top", repeat: false, onEnter: () => updateCalc(false) });
 }
 
-/* ---------- Nav: highlight the section in view ---------- */
+// --- nav highlight
 const links = [...document.querySelectorAll(".nav nav a")];
 const io = new IntersectionObserver(entries => {
   entries.forEach(e => {

@@ -1,8 +1,5 @@
-"""Figures out how much of each food is left on the tray.
-
-MockRecognizer: makes realistic pretend results (no internet, good for demos).
-ClaudeRecognizer: sends the photo to Claude's vision AI.
-"""
+# how much of each food is left?
+# MockRecognizer fakes it for demos, ClaudeRecognizer asks Claude using the photo
 import base64
 import json
 import random

@@ -1,11 +1,10 @@
-"""Takes a photo of the tray from above."""
+# top-down tray photo. returns the file path, or None when simulating
 from datetime import datetime
 
 import config
 
 
 def take_photo():
-    """Returns the saved photo path, or None in simulate mode."""
     if config.MODE != "hardware":
         return None
 
@@ -13,7 +12,7 @@ def take_photo():
     path = config.PHOTO_DIR / f"tray_{datetime.now():%Y%m%d_%H%M%S}.jpg"
 
     try:
-        # Raspberry Pi Camera Module (pre-installed on Raspberry Pi OS)
+        # pi camera module (comes with raspberry pi os)
         from picamera2 import Picamera2
 
         cam = Picamera2()
@@ -23,7 +22,7 @@ def take_photo():
         cam.stop()
         cam.close()
     except ImportError:
-        # Fallback: any USB webcam. pip install opencv-python
+        # no picamera2 -> try a usb webcam (pip install opencv-python)
         import cv2
 
         cap = cv2.VideoCapture(0)
