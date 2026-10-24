@@ -35,6 +35,7 @@ It's a static site, so it runs on GitHub Pages as is. In the repo go to **Settin
 - **Station:** pick the day, hold the tray up to the camera, and press **Scan tray**. If there's food left, the student can vote. The camera stays on in the corner, so you can go straight to the next tray.
 - **Use a photo:** pick a picture of a tray instead of using the camera. A top-down phone photo works best.
 - **Photo recognition:** paste a free [Groq](https://console.groq.com/keys) or [Gemini](https://aistudio.google.com/apikey) API key in **Settings**. The app tells which one it is from the key. The key is saved only in your browser, never in the code. Without a key, switch to **Demo mode**, which makes up realistic results.
+- **Reference photos (optional):** in **Menu > Foods**, add a photo of a full serving next to any food. Scans send up to four of the day's reference photos along with the tray photo, which helps it tell similar foods apart and judge portions.
 - **Real scale:** weigh the tray on any kitchen scale and type the number into **Real scale reading** before you scan. The results get adjusted to match the real weight.
 - **Menu:** each day has categories (Main, Veg main, Side, Fruit, Drink), and each category can have more than one food. You can add your own categories and change serving sizes.
 - **Dashboard:** waste by food, why students left food, waste per day, suggestions for the kitchen, and **Export CSV**. Filter by 7 days, 4 weeks, or all time.

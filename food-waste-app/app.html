@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
-<link rel="stylesheet" href="app.css?v=9">
+<link rel="stylesheet" href="app.css?v=10">
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -204,7 +204,8 @@
         </form>
       </div>
       <div class="card">
-        <div class="card-head"><h2>Serving sizes</h2></div>
+        <div class="card-head"><h2>Foods</h2></div>
+        <p class="muted small">Serving size in grams. Adding a photo of a full serving is optional, but it helps the scan recognize that food.</p>
         <div class="serving-list" id="serving-list"></div>
         <form class="add-item" id="add-item-form">
           <label for="new-item">Add a food</label>
@@ -281,6 +282,6 @@
 <div id="tooltip" role="tooltip" hidden></div>
 <div id="toast" role="status" aria-live="polite" hidden></div>
 <canvas id="grab" hidden></canvas>
-<script src="app.js?v=14"></script>
+<script src="app.js?v=15"></script>
 </body>
 </html>

@@ -252,7 +252,14 @@ td.n, th.n { text-align: right; font-family: var(--mono); font-variant-numeric: 
 .cat-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; align-items: center; }
 .add-row.cat-add { grid-template-columns: minmax(0, 1fr) auto; }
 .serving-list { display: flex; flex-direction: column; gap: 6px; max-height: 460px; overflow-y: auto; padding-right: 4px; }
-.serving-row { display: grid; grid-template-columns: minmax(0, 1fr) 96px; align-items: center; gap: 10px; }
+.serving-row { display: grid; grid-template-columns: minmax(0, 1fr) auto 96px; align-items: center; gap: 10px; }
+.ref { display: flex; align-items: center; gap: 2px; }
+.ref img { width: 34px; height: 34px; object-fit: cover; border-radius: 8px; border: 1px solid var(--hairline); }
+.ref button { border: none; background: transparent; color: var(--mid); cursor: pointer; font-size: 16px; width: 24px; height: 24px; border-radius: 8px; }
+.ref button:hover { background: var(--input); color: var(--ink); }
+.ref-add { font-size: 12px; color: var(--mid); padding: 4px 10px; border-radius: var(--pill); border: 1px dashed var(--faint); cursor: pointer; white-space: nowrap; }
+.ref-add:hover { color: var(--ink); border-color: var(--ink); }
+.ref-add:focus-within { outline: 2px solid var(--ink); outline-offset: 2px; }
 input[type="text"], input[type="number"], input[type="password"] { width: 100%; min-height: 38px; border-radius: var(--pill); border: 1px solid transparent; background: var(--input); color: var(--ink); font: inherit; padding: 8px 14px; transition: border-color .15s; }
 input::placeholder { color: var(--mid); }
 input:focus { border-color: var(--faint); outline: none; background: var(--paper); }

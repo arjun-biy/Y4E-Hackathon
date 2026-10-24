@@ -60,6 +60,7 @@ function freshState() {
   return {
     items: { ...DEFAULT_ITEMS },
     categories: [...DEFAULT_CATEGORIES],
+    refs: {},  // food name -> small jpeg data url of a full serving, optional
     week: JSON.parse(JSON.stringify(DEFAULT_WEEK)),
     lists: [],
     trays: [],
@@ -126,7 +127,10 @@ const DEFAULT_MODEL = "gemini-flash-latest";  // Google's alias for the newest F
 const GROQ_MODELS = ["qwen/qwen3.8-27b", "meta-llama/llama-4-scout-17b-16e-instruct"];
 // gsk_ = Groq, anything else (AIza...) = Gemini
 const aiName = () => state.settings.apiKey.startsWith("gsk_") ? "Groq" : "Gemini";
-const scanPrompt = menu => `This is a photo of a school lunch tray after a student finished eating. Today's menu, by category (students usually take one food from each category):
+// up to 4 reference photos per scan - groq caps a request at 5 images and the tray is one of them
+const dayRefs = menu => menu.filter(m => state.refs[m.it]).slice(0, 4).map(m => ({ it: m.it, b64: state.refs[m.it].split(",")[1] }));
+const REF_NOTE = "The earlier photos are reference photos of a full serving of some menu items at this school. Use them to recognize those items and judge how much is left. Only grade the last photo, the tray.\n";
+const scanPrompt = (menu, hasRefs) => `${hasRefs ? REF_NOTE : ""}The tray photo shows a school lunch tray after a student finished eating. Today's menu, by category (students usually take one food from each category):
 ${[...new Set(menu.map(m => m.cat))].map(c => `- ${c}: ${menu.filter(m => m.cat === c).map(m => m.it).join(", ")}`).join("\n")}
 First describe in a few words what the photo shows. Any tray, plate, bowl, lunchbox, wrapper or food counts as the tray; set tray_visible to false only if there is no food or dishware at all.
 Then, for each menu item, estimate what fraction of the original serving is still left (0 = fully eaten, 1 = untouched). If the student didn't take that item at all, use null.
@@ -149,8 +153,11 @@ async function errorDetail(res) {
 async function geminiText(menu, jpegBase64) {
   const { apiKey, model } = state.settings;
   const modelId = model.startsWith("gemini") ? model : DEFAULT_MODEL;
+  const refs = dayRefs(menu);
+  const parts = refs.flatMap(r => [{ text: `Reference photo: a full serving of ${r.it}.` }, { inline_data: { mime_type: "image/jpeg", data: r.b64 } }]);
+  parts.push({ text: "Tray photo:" }, { inline_data: { mime_type: "image/jpeg", data: jpegBase64 } }, { text: scanPrompt(menu, refs.length > 0) });
   const res = await post(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelId)}:generateContent`, { "x-goog-api-key": apiKey }, {
-    contents: [{ parts: [{ inline_data: { mime_type: "image/jpeg", data: jpegBase64 } }, { text: scanPrompt(menu) }] }],
+    contents: [{ parts }],
     generationConfig: { responseMimeType: "application/json", temperature: 0 }
   });
   if (!res.ok) {
@@ -168,13 +175,17 @@ async function geminiText(menu, jpegBase64) {
 async function groqText(menu, jpegBase64) {
   const { apiKey, model } = state.settings;
   const models = [...new Set([model, ...GROQ_MODELS].filter(m => m && !m.startsWith("gemini")))];
+  const refs = dayRefs(menu);
+  const img = b64 => ({ type: "image_url", image_url: { url: `data:image/jpeg;base64,${b64}` } });
+  const content = [
+    { type: "text", text: scanPrompt(menu, refs.length > 0) },
+    ...refs.flatMap(r => [{ type: "text", text: `Reference photo: a full serving of ${r.it}.` }, img(r.b64)]),
+    { type: "text", text: "Tray photo:" }, img(jpegBase64)
+  ];
   for (const modelId of models) {
     const res = await post("https://api.groq.com/openai/v1/chat/completions", { authorization: `Bearer ${apiKey}` }, {
       model: modelId, temperature: 0, max_completion_tokens: 600, response_format: { type: "json_object" },
-      messages: [{ role: "user", content: [
-        { type: "text", text: scanPrompt(menu) },
-        { type: "image_url", image_url: { url: `data:image/jpeg;base64,${jpegBase64}` } }
-      ] }]
+      messages: [{ role: "user", content }]
     });
     if (res.ok) return (await res.json()).choices?.[0]?.message?.content || "";
     const detail = await errorDetail(res);
@@ -383,11 +394,11 @@ function stopCamera() {
 $("cam-btn").onclick = () => stream ? (stopCamera(), $("snapshot").hidden = true, setStatus("Camera off.")) : startCamera();
 
 // 1024px is plenty for the AI and keeps uploads quick
-function toJpeg(source, srcW, srcH) {
-  const c = $("grab"), w = Math.min(1024, srcW), h = Math.round(w * srcH / srcW);
+function toJpeg(source, srcW, srcH, maxW = 1024, quality = .82) {
+  const c = $("grab"), w = Math.min(maxW, srcW), h = Math.round(w * srcH / srcW);
   c.width = w; c.height = h;
   c.getContext("2d").drawImage(source, 0, 0, w, h);
-  const url = c.toDataURL("image/jpeg", .82);
+  const url = c.toDataURL("image/jpeg", quality);
   return { url, b64: url.split(",")[1] };
 }
 const grabPhoto = () => toJpeg($("cam"), $("cam").videoWidth || 1024, $("cam").videoHeight || 576);
@@ -758,13 +769,36 @@ function renderCategoryList() {
 }
 
 function renderServingSizes(names) {
-  $("serving-list").innerHTML = names.map(n => `<div class="serving-row"><label for="g-${esc(n)}">${esc(n)}</label><input type="number" min="1" max="2000" id="g-${esc(n)}" data-item="${esc(n)}" value="${state.items[n]}"></div>`).join("");
-  $("serving-list").querySelectorAll("input").forEach(inp => inp.onchange = () => {
+  $("serving-list").innerHTML = names.map(n => {
+    const ref = state.refs[n];
+    const slot = ref
+      ? `<span class="ref"><img src="${ref}" alt="Reference photo of ${esc(n)}"><button data-item="${esc(n)}" aria-label="Remove the reference photo of ${esc(n)}">&times;</button></span>`
+      : `<label class="ref-add" title="Optional: a photo of a full serving helps the scan recognize it">+ photo<input type="file" accept="image/*" data-item="${esc(n)}" hidden></label>`;
+    return `<div class="serving-row"><label for="g-${esc(n)}">${esc(n)}</label>${slot}<input type="number" min="1" max="2000" id="g-${esc(n)}" data-item="${esc(n)}" value="${state.items[n]}"></div>`;
+  }).join("");
+  $("serving-list").querySelectorAll('input[type="file"]').forEach(inp => inp.onchange = () => addRefPhoto(inp.dataset.item, inp.files[0]));
+  $("serving-list").querySelectorAll(".ref button").forEach(b => b.onclick = () => {
+    delete state.refs[b.dataset.item]; save(); renderMenu(); toast(`Reference photo of ${b.dataset.item} removed`);
+  });
+  $("serving-list").querySelectorAll('input[type="number"]').forEach(inp => inp.onchange = () => {
     const v = Math.round(+inp.value);
     if (!(v >= 1 && v <= 2000)) { inp.value = state.items[inp.dataset.item]; toast("Serving size must be between 1 and 2000 grams"); return; }
     state.items[inp.dataset.item] = v; save(); toast(`${inp.dataset.item}: ${v} g`);
   });
 }
+// small on purpose: it lives in localStorage and rides along with every scan
+function addRefPhoto(food, file) {
+  if (!file) return;
+  const im = new Image();
+  im.onload = () => {
+    URL.revokeObjectURL(im.src);
+    state.refs[food] = toJpeg(im, im.naturalWidth, im.naturalHeight, 384, .7).url;
+    save(); renderMenu(); toast(`Reference photo saved for ${food}`);
+  };
+  im.onerror = () => toast("Couldn't open that file. Pick a JPG or PNG photo.");
+  im.src = URL.createObjectURL(file);
+}
+
 $("add-cat-form").addEventListener("submit", e => {
   e.preventDefault();
   const name = $("new-cat").value.trim(), err = $("cat-error");
