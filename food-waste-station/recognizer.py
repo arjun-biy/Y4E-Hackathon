@@ -1,5 +1,5 @@
 # how much of each food is left?
-# MockRecognizer fakes it for demos, ClaudeRecognizer asks Claude using the photo
+# MockRecognizer fakes it for demos, PhotoRecognizer reads the actual tray photo
 import base64
 import json
 import random
@@ -36,7 +36,7 @@ class MockRecognizer:
         return results
 
 
-class ClaudeRecognizer:
+class PhotoRecognizer:
     def __init__(self):
         # pip install anthropic, and set the ANTHROPIC_API_KEY environment variable
         import anthropic
@@ -55,7 +55,7 @@ class ClaudeRecognizer:
             "Reply with ONLY a JSON object mapping each item name exactly as given to a number."
         )
         message = self.client.messages.create(
-            model=config.CLAUDE_MODEL,
+            model=config.VISION_MODEL,
             max_tokens=300,
             messages=[
                 {
@@ -74,4 +74,4 @@ class ClaudeRecognizer:
 
 
 def get_recognizer():
-    return ClaudeRecognizer() if config.RECOGNIZER == "claude" else MockRecognizer()
+    return PhotoRecognizer() if config.RECOGNIZER == "photo" else MockRecognizer()

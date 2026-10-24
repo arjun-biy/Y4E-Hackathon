@@ -37,7 +37,7 @@ def handle_tray(conn, scale, recognizer, menu, items, served_date, auto=False):
     measured_leftover = max(0.0, weight - empty_tray)
 
     photo = camera.take_photo()
-    if config.MODE == "hardware" or config.RECOGNIZER == "claude":
+    if config.MODE == "hardware" or config.RECOGNIZER == "photo":
         fractions = recognizer.estimate(photo, items)
     else:
         fractions = fake

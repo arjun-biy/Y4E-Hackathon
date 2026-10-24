@@ -3,7 +3,7 @@ streamlit
 pandas
 altair
 
-# Only for real food recognition with Claude (RECOGNIZER=claude)
+# Only for photo recognition (RECOGNIZER=photo)
 anthropic
 
 # Only on the Raspberry Pi with real hardware (STATION_MODE=hardware)

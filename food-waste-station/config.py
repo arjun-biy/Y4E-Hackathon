@@ -13,10 +13,9 @@ MENU_PATH = BASE_DIR / "menu.json"
 # "hardware" uses the real scale, camera and buttons on a Raspberry Pi.
 MODE = os.environ.get("STATION_MODE", "simulate")
 
-# Food recognition: "mock" makes up realistic results (no internet needed).
-# "claude" sends the photo to Claude's vision AI (needs ANTHROPIC_API_KEY).
+# "mock" makes up results (no internet), "photo" reads the tray photo (needs ANTHROPIC_API_KEY)
 RECOGNIZER = os.environ.get("RECOGNIZER", "mock")
-CLAUDE_MODEL = os.environ.get("CLAUDE_MODEL", "claude-haiku-5-5")
+VISION_MODEL = os.environ.get("VISION_MODEL", "claude-haiku-5-5")
 
 # Scale wiring on the Raspberry Pi (BCM pin numbers) and calibration.
 HX711_DATA_PIN = 5
