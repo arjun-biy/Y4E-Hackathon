@@ -72,7 +72,7 @@ function load() {
     const raw = localStorage.getItem(STORE_KEY);
     if (raw) {
       state = Object.assign(freshState(), JSON.parse(raw));
-      // v1 used Claude: switch saved settings to Gemini real scans
+      // settings saved before real AI scans existed
       if (state.settings.v !== 2) Object.assign(state.settings, { recognizer: "gemini", apiKey: "", model: "", v: 2 });
       // older menus had one food per slot: [main, side, fruit, drink]
       if (Array.isArray(state.week.Monday)) {
@@ -111,7 +111,7 @@ function listIndex(items) {
 // pretend student takes one food from each category; the foods they didn't take are null
 function mockEstimate(menu) {
   const byCat = {};
-  // ponytail: any category with "main" in its name counts as one choice (regular or veg); add explicit groups if a school needs it
+  // regular and veg mains are one choice. Matching "main" in the name is crude but fine until a school names things differently
   for (const { it, cat } of menu) (byCat[/main/i.test(cat) ? "main" : cat] ||= []).push(it);
   const taken = new Set(Object.values(byCat).map(list => list[Math.floor(rand() * list.length)]));
   return menu.map(({ it }) => {
@@ -148,8 +148,8 @@ async function errorDetail(res) {
 
 async function geminiText(menu, jpegBase64) {
   const { apiKey, model } = state.settings;
-  const m = model.startsWith("gemini") ? model : DEFAULT_MODEL;
-  const res = await post(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(m)}:generateContent`, { "x-goog-api-key": apiKey }, {
+  const modelId = model.startsWith("gemini") ? model : DEFAULT_MODEL;
+  const res = await post(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelId)}:generateContent`, { "x-goog-api-key": apiKey }, {
     contents: [{ parts: [{ inline_data: { mime_type: "image/jpeg", data: jpegBase64 } }, { text: scanPrompt(menu) }] }],
     generationConfig: { responseMimeType: "application/json", temperature: 0 }
   });
@@ -157,20 +157,20 @@ async function geminiText(menu, jpegBase64) {
     const detail = await errorDetail(res);
     if (res.status === 400 && /api key/i.test(detail)) throw new Error("Gemini says the API key isn't valid. Check it in Settings.");
     if (res.status === 403) throw new Error("Gemini refused the key (403). Make a new key at aistudio.google.com/apikey and paste it in Settings.");
-    if (res.status === 404) throw new Error(`Gemini doesn't have a model called "${m}". Clear the Model box in Settings.`);
+    if (res.status === 404) throw new Error(`Gemini doesn't have a model called "${modelId}". Clear the Model box in Settings.`);
     if (res.status === 429) throw new Error("Gemini's free limit is used up for now. Wait a minute and scan again.");
     throw new Error(`Gemini returned an error (${res.status}). ${detail}`);
   }
-  const data = await res.json();
-  return data.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
+  const gemini = await res.json();
+  return gemini.candidates?.[0]?.content?.parts?.map(p => p.text || "").join("") || "";
 }
 
 async function groqText(menu, jpegBase64) {
   const { apiKey, model } = state.settings;
   const models = [...new Set([model, ...GROQ_MODELS].filter(m => m && !m.startsWith("gemini")))];
-  for (const m of models) {
+  for (const modelId of models) {
     const res = await post("https://api.groq.com/openai/v1/chat/completions", { authorization: `Bearer ${apiKey}` }, {
-      model: m, temperature: 0, max_completion_tokens: 600, response_format: { type: "json_object" },
+      model: modelId, temperature: 0, max_completion_tokens: 600, response_format: { type: "json_object" },
       messages: [{ role: "user", content: [
         { type: "text", text: scanPrompt(menu) },
         { type: "image_url", image_url: { url: `data:image/jpeg;base64,${jpegBase64}` } }
@@ -180,20 +180,20 @@ async function groqText(menu, jpegBase64) {
     const detail = await errorDetail(res);
     if (res.status === 401) throw new Error("Groq says the API key isn't valid. Check it in Settings.");
     if (res.status === 429) throw new Error("Groq's free limit is used up for now. Wait a minute and scan again.");
-    if ((res.status === 404 || /model/i.test(detail)) && m !== models[models.length - 1]) continue;  // retired model, try the next
+    if ((res.status === 404 || /model/i.test(detail)) && modelId !== models.at(-1)) continue;  // retired model, try the next
     throw new Error(`Groq returned an error (${res.status}). ${detail}`);
   }
 }
 
 async function aiEstimate(menu, jpegBase64) {
-  const text = aiName() === "Groq" ? await groqText(menu, jpegBase64) : await geminiText(menu, jpegBase64);
-  let json;
-  try { json = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1)); }
+  const reply = aiName() === "Groq" ? await groqText(menu, jpegBase64) : await geminiText(menu, jpegBase64);
+  let answer;
+  try { answer = JSON.parse(reply.slice(reply.indexOf("{"), reply.lastIndexOf("}") + 1)); }
   catch (e) { throw new Error(`${aiName()}'s answer didn't make sense. Scan again.`); }
-  if (json.tray_visible === false) throw new Error(`${aiName()} couldn't see any food${json.seen ? ` (it saw: ${json.seen})` : ""}. Hold the plate or tray up in front of the camera and scan again.`);
-  const left = json.left || json;
+  if (answer.tray_visible === false) throw new Error(`${aiName()} couldn't see any food${answer.seen ? ` (it saw: ${answer.seen})` : ""}. Hold the plate or tray up in front of the camera and scan again.`);
+  const left = answer.left || answer;
   const fracs = menu.map(({ it }) => left[it] == null ? null : Math.min(1, Math.max(0, Number(left[it]) || 0)));
-  fracs.other = Array.isArray(json.other_food) ? json.other_food.map(String) : [];  // foods not on today's menu
+  fracs.other = Array.isArray(answer.other_food) ? answer.other_food.map(String) : [];  // foods not on today's menu
   return fracs;
 }
 
@@ -326,12 +326,12 @@ function animateReadout(target) {
   })(start);
 }
 
-// shown over the top of the tray box; info messages fade after a few seconds so they don't cover results
+// errors stay until the next action; everything else clears itself
 let statusTimer;
-function setStatus(msg, err) {
+function setStatus(msg, err, keep) {
   $("status").textContent = msg; $("status").classList.toggle("err", !!err);
   clearTimeout(statusTimer);
-  if (!err && !busy) statusTimer = setTimeout(() => $("status").textContent = "", 6000);
+  if (!err && !keep && !busy) statusTimer = setTimeout(() => $("status").textContent = "", 6000);
 }
 
 function renderVotes() {
@@ -352,10 +352,10 @@ function updateChip() {
   const real = state.settings.recognizer === "gemini";
   $("ai-chip").className = "chip" + (real ? " solid" : "");
   $("ai-chip").textContent = real ? (state.settings.apiKey ? `${aiName()} real scan` : "Real scan: add key in Settings") : "Demo mode";
-  if ($("empty-g")) $("empty-g").textContent = state.settings.emptyTray;  // gone once a scan fills in scale-meta
+  if ($("empty-g")) $("empty-g").textContent = state.settings.emptyTray;  // replaced after the first scan
 }
 
-/* Camera */
+/* ---------------- Camera ---------------- */
 let stream = null;
 async function startCamera() {
   if (!navigator.mediaDevices?.getUserMedia) { setStatus("This browser can't use the camera here. Open the app through the launcher (localhost) in Chrome or Safari.", true); return; }
@@ -367,7 +367,7 @@ async function startCamera() {
     $("cam-btn").classList.add("on"); $("cam-btn").querySelector("span").textContent = "Turn off camera";
     setStatus(state.settings.recognizer === "gemini"
       ? "Camera on. Put a tray in front of it and press Scan tray."
-      : "Camera on. Demo mode makes up the results. For real ones, pick Gemini in Settings.");
+      : "Camera on. Demo mode makes up the results. For real ones, pick Real scan in Settings.");
   } catch (e) {
     setStatus(e.name === "NotAllowedError"
       ? "Camera blocked. Allow it in the browser's address bar, and in System Settings > Privacy & Security > Camera, then try again."
@@ -382,14 +382,15 @@ function stopCamera() {
 }
 $("cam-btn").onclick = () => stream ? (stopCamera(), $("snapshot").hidden = true, setStatus("Camera off.")) : startCamera();
 
-function grabPhoto() {
-  const v = $("cam"), c = $("grab");
-  const w = Math.min(1024, v.videoWidth || 1024), h = Math.round(w * (v.videoHeight || 576) / (v.videoWidth || 1024));
+// shrink to 1024px wide so the AI request stays small
+function toJpeg(source, srcW, srcH) {
+  const c = $("grab"), w = Math.min(1024, srcW), h = Math.round(w * srcH / srcW);
   c.width = w; c.height = h;
-  c.getContext("2d").drawImage(v, 0, 0, w, h);
+  c.getContext("2d").drawImage(source, 0, 0, w, h);
   const url = c.toDataURL("image/jpeg", .82);
   return { url, b64: url.split(",")[1] };
 }
+const grabPhoto = () => toJpeg($("cam"), $("cam").videoWidth || 1024, $("cam").videoHeight || 576);
 
 let uploaded = null;  // photo picked with "Use a photo"
 $("photo-in").onchange = e => {
@@ -397,18 +398,60 @@ $("photo-in").onchange = e => {
   if (!file) return;
   const im = new Image();
   im.onload = () => {
-    const c = $("grab"), w = Math.min(1024, im.naturalWidth), h = Math.round(w * im.naturalHeight / im.naturalWidth);
-    c.width = w; c.height = h; c.getContext("2d").drawImage(im, 0, 0, w, h);
-    const url = c.toDataURL("image/jpeg", .82);
     URL.revokeObjectURL(im.src);
     stopCamera();
-    uploaded = { url, b64: url.split(",")[1] };
-    $("snapshot").src = url; $("snapshot").hidden = false; $("tray").style.visibility = "hidden";
+    uploaded = toJpeg(im, im.naturalWidth, im.naturalHeight);
+    $("snapshot").src = uploaded.url; $("snapshot").hidden = false; $("tray").style.visibility = "hidden";
     setStatus("Photo ready. Press Scan tray.");
   };
   im.onerror = () => setStatus("Couldn't open that file. Pick a JPG or PNG photo.", true);
   im.src = URL.createObjectURL(file);
 };
+
+// grams typed into "Real scale reading": null if empty, undefined if it doesn't make sense
+function scaleReading() {
+  const typed = $("weigh").value.trim();
+  if (typed === "") return null;
+  const grams = Math.round(+typed);
+  if (!(grams >= 0 && grams <= 5000)) { setStatus("Scale reading should be between 0 and 5000 grams.", true); return undefined; }
+  if (grams < state.settings.emptyTray) { setStatus(`That's lighter than an empty tray (${state.settings.emptyTray} g). Check the reading or the empty tray weight in Settings.`, true); return undefined; }
+  return grams;
+}
+
+async function readTray(menu, useAI) {
+  if (useAI && !stream && !uploaded) {
+    // turn the camera on for them and give it a moment to adjust to the light
+    await startCamera();
+    if (!stream) return null;
+    setStatus("Hold the tray in front of the camera...");
+    await new Promise(r => setTimeout(r, 1500));
+  }
+  let photo = uploaded;
+  if (stream) { photo = grabPhoto(); $("snapshot").src = photo.url; $("snapshot").hidden = false; $("tray-frame").classList.remove("pip"); }
+  $("scan-line").hidden = false;
+  if (!useAI) {
+    setStatus("Scanning tray...");
+    await new Promise(r => setTimeout(r, reduceMotion ? 50 : 900));
+    return mockEstimate(menu);
+  }
+  const startedAt = Date.now();
+  const tick = () => setStatus(`${aiName()} is looking at what's left on the tray... ${Math.round((Date.now() - startedAt) / 1000)}s`);
+  tick();
+  const ticker = setInterval(tick, 1000);
+  try { return await aiEstimate(menu, photo.b64); }
+  finally { clearInterval(ticker); }
+}
+
+function showScan(tray, items, reading) {
+  const measured = reading == null ? null : reading - state.settings.emptyTray;
+  const leftGrams = tray.f.reduce((sum, f, i) => sum + f * (state.items[items[i]] || 0), 0);
+  renderTray(tray.f);
+  animateReadout(reading ?? state.settings.emptyTray + leftGrams);
+  $("scale-meta").innerHTML = measured != null
+    ? `Real scale <b>${fmtInt(reading)}</b> g<br>Food left <b>${fmtInt(measured)}</b> g`
+    : `Tray + food <b>${fmtInt(state.settings.emptyTray + leftGrams)}</b> g<br>Food left <b>${fmtInt(leftGrams)}</b> g`;
+  return leftGrams;
+}
 
 async function scanTray() {
   if (busy) return;
@@ -416,61 +459,35 @@ async function scanTray() {
   if (!items.length) { setStatus(`There's nothing on ${menuDay}'s menu. Add foods in Menu first.`, true); return; }
   const useAI = state.settings.recognizer === "gemini";
   if (useAI && !state.settings.apiKey) { setStatus("Paste your free Gemini or Groq API key in Settings first (or switch to Demo mode).", true); return; }
-  const weighRaw = $("weigh").value.trim(), reading = weighRaw === "" ? null : Math.round(+weighRaw);
-  if (reading != null && !(reading >= 0 && reading <= 5000)) { setStatus("Scale reading should be between 0 and 5000 grams.", true); return; }
-  if (reading != null && reading < state.settings.emptyTray) { setStatus(`That's lighter than an empty tray (${state.settings.emptyTray} g). Check the reading or the empty tray weight in Settings.`, true); return; }
+  const reading = scaleReading();
+  if (reading === undefined) return;
 
   busy = true; pending = null; renderVotes();
   $("scan-btn").disabled = true;
-  if (useAI && !stream && !uploaded) {
-    // turn the camera on for them and give it a moment to adjust to the light
-    await startCamera();
-    if (!stream) { $("scan-btn").disabled = false; busy = false; return; }
-    setStatus("Hold the tray in front of the camera...");
-    await new Promise(r => setTimeout(r, 1500));
-  }
-  let photo = null;
-  if (stream) { photo = grabPhoto(); $("snapshot").src = photo.url; $("snapshot").hidden = false; $("tray-frame").classList.remove("pip"); }
-  else if (uploaded) photo = uploaded;
-  $("scan-line").hidden = false;
-  setStatus(useAI ? `${aiName()} is looking at what's left on the tray...` : "Scanning tray...");
-
   let fracs;
-  const t0 = Date.now();
-  const ticker = useAI && setInterval(() => setStatus(`${aiName()} is looking at what's left on the tray... ${Math.round((Date.now() - t0) / 1000)}s`), 1000);
   try {
-    if (useAI) fracs = await aiEstimate(menu, photo.b64);
-    else { await new Promise(r => setTimeout(r, reduceMotion ? 50 : 900)); fracs = mockEstimate(menu); }
+    fracs = await readTray(menu, useAI);
   } catch (e) {
-    clearInterval(ticker);
-    $("scan-line").hidden = true; $("scan-btn").disabled = false; busy = false;
     if (stream) $("snapshot").hidden = true;
     setStatus(e.message || "Something went wrong reading the tray. Try again.", true);
-    return;
+  } finally {
+    $("scan-line").hidden = true; $("scan-btn").disabled = false; busy = false;
   }
-  clearInterval(ticker);
-  $("scan-line").hidden = true;
+  if (!fracs) return;
+
   // camera stays on as a small live preview so the next tray can be scanned right away
-  if (photo) { $("snapshot").hidden = true; $("tray").style.visibility = ""; uploaded = null; }
+  $("snapshot").hidden = true; $("tray").style.visibility = ""; uploaded = null;
   if (stream) $("tray-frame").classList.add("pip");
 
-  const other = fracs.other?.length ? ` Also saw ${fracs.other.join(", ")}, which isn't on ${menuDay}'s menu. Add it in Menu to track it.` : "";
-  const measured = reading == null ? null : reading - state.settings.emptyTray;
-  if (measured != null) fracs = matchToScale(fracs, items, measured);
-  const left = fracs.reduce((a, f, i) => a + f * (state.items[items[i]] || 0), 0);
+  const notOnMenu = fracs.other?.length ? ` Also saw ${fracs.other.join(", ")}, which isn't on ${menuDay}'s menu. Add it in Menu to track it.` : "";
+  if (reading != null) fracs = matchToScale(fracs, items, reading - state.settings.emptyTray);
   const tray = { d: iso(today()), l: listIndex(items), f: fracs, v: -1, s: 0 };
   state.trays.push(tray); save();
   $("weigh").value = "";
 
-  renderTray(fracs);
-  animateReadout(reading ?? state.settings.emptyTray + left);
-  $("scale-meta").innerHTML = measured != null
-    ? `Real scale <b>${fmtInt(reading)}</b> g<br>Food left <b>${fmtInt(measured)}</b> g`
-    : `Tray + food <b>${fmtInt(state.settings.emptyTray + left)}</b> g<br>Food left <b>${fmtInt(left)}</b> g`;
-  if (left > 20) { pending = tray; setStatus("Saved. Ask the student why they left food (optional)." + other); }
-  else setStatus("Saved. Clean tray, nice!" + other);
+  if (showScan(tray, items, reading) > 20) { pending = tray; setStatus("Saved. Ask the student why they left food (optional)." + notOnMenu, false, true); }
+  else setStatus("Saved. Clean tray, nice!" + notOnMenu, false, true);
   renderVotes(); renderToday();
-  $("scan-btn").disabled = false; busy = false;
 }
 $("scan-btn").onclick = scanTray;
 
@@ -694,7 +711,13 @@ function menuChanged(msg) { save(); renderMenu(); renderDayPicker(); renderTray(
 
 function renderMenu() {
   const names = Object.keys(state.items).sort();
-  // rows = categories, columns = days; each cell holds any number of foods
+  renderWeekTable(names);
+  renderCategoryList();
+  renderServingSizes(names);
+}
+
+// rows = categories, columns = days; each cell holds any number of foods
+function renderWeekTable(names) {
   $("week-table").innerHTML = `<thead><tr><th></th>${SCHOOL_DAYS.map(d => `<th>${d}</th>`).join("")}</tr></thead><tbody>${
     state.categories.map(cat => `<tr><td>${esc(cat)}</td>${SCHOOL_DAYS.map(d => {
       const list = state.week[d][cat] || [];
@@ -713,7 +736,9 @@ function renderMenu() {
     const [gone] = state.week[day][cat].splice(+k, 1);
     menuChanged(`${gone} removed from ${day} ${cat}`);
   });
+}
 
+function renderCategoryList() {
   $("cat-list").innerHTML = state.categories.map((c, i) => `<div class="cat-row"><input type="text" value="${esc(c)}" data-i="${i}" aria-label="Category name"><button class="btn small-btn danger" data-i="${i}">Remove</button></div>`).join("");
   $("cat-list").querySelectorAll("input").forEach(inp => inp.onchange = () => {
     const old = state.categories[+inp.dataset.i], name = inp.value.trim();
@@ -730,7 +755,9 @@ function renderMenu() {
     for (const d of SCHOOL_DAYS) delete state.week[d][cat];
     menuChanged(`${cat} removed`);
   });
+}
 
+function renderServingSizes(names) {
   $("serving-list").innerHTML = names.map(n => `<div class="serving-row"><label for="g-${esc(n)}">${esc(n)}</label><input type="number" min="1" max="2000" id="g-${esc(n)}" data-item="${esc(n)}" value="${state.items[n]}"></div>`).join("");
   $("serving-list").querySelectorAll("input").forEach(inp => inp.onchange = () => {
     const v = Math.round(+inp.value);
