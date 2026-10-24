@@ -92,6 +92,7 @@ function save() {
   saveTimer = setTimeout(() => {
     try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
     catch (e) { toast("Couldn't save data in this browser. It will reset when you close the page."); }
+    pushConfig();
   }, 150);
 }
 // flat list for a day: [{ it: "Apple", cat: "Fruit" }, ...]
@@ -246,6 +247,7 @@ function loadSampleWeeks() {
   rand = Math.random;
   state.trays.sort((a, b) => a.d < b.d ? -1 : a.d > b.d ? 1 : 0);
   save();
+  return state.trays.filter(t => t.s);
 }
 
 // --- theme
@@ -289,7 +291,10 @@ function show(view) {
     if (b.dataset.view === view) b.setAttribute("aria-current", "page");
     else b.removeAttribute("aria-current");
   });
-  if (view === "dashboard") renderDashboard();
+  if (view === "dashboard") {
+    renderDashboard();
+    if (school) pullTrays().then(() => { if (!$("view-dashboard").hidden) renderDashboard(); renderToday(); }, syncFail);
+  }
   if (view === "menu") renderMenu();
   if (view === "settings") renderSettings();
   if (view === "station") renderToday();
@@ -354,7 +359,9 @@ function renderVotes() {
 }
 function castVote(v) {
   if (!pending) return;
-  pending.v = v; pending = null; save();
+  const tray = pending;
+  tray.v = v; pending = null; save();
+  pushVote(tray);
   setStatus(`Vote saved: ${REASONS[v].label}. Thanks!`);
   renderVotes(); renderToday();
 }
@@ -494,6 +501,7 @@ async function scanTray() {
   if (reading != null) fracs = fitToScale(fracs, items, reading - state.settings.emptyTray);
   const tray = { d: iso(today()), l: menuId(items), f: fracs, v: -1, s: 0 };
   state.trays.push(tray); save();
+  pushTrays([tray]);
   $("weigh").value = "";
 
   if (showScan(tray, items, reading) > 20) { pending = tray; setStatus("Saved. Ask the student why they left food (optional)." + notOnMenu, false, true); }
@@ -505,15 +513,15 @@ $("scan-btn").onclick = scanTray;
 $("rush-btn").onclick = () => {
   const menu = dayMenu(menuDay), items = menu.map(m => m.it);
   if (!items.length) { setStatus(`There's nothing on ${menuDay}'s menu. Add foods in Menu first.`, true); return; }
-  const l = menuId(items);
-  let last;
+  const l = menuId(items), rush = [];
   for (let i = 0; i < 50; i++) {
     const f = fakeScan(menu);
     const left = f.reduce((a, x, k) => a + x * (state.items[items[k]] || 0), 0);
-    last = { d: iso(today()), l, f, v: left > 20 && rand() < .3 ? Math.floor(rand() * 4) : -1, s: 0 };
-    state.trays.push(last);
+    rush.push({ d: iso(today()), l, f, v: left > 20 && rand() < .3 ? Math.floor(rand() * 4) : -1, s: 1 });
   }
-  save(); pending = null; renderVotes();
+  state.trays.push(...rush);
+  const last = rush.at(-1);
+  save(); pushTrays(rush); pending = null; renderVotes();
   renderTray(last.f);
   const left = last.f.reduce((a, x, k) => a + x * (state.items[items[k]] || 0), 0);
   animateReadout(state.settings.emptyTray + left);
@@ -832,8 +840,13 @@ function renderSettings() {
   $("model").value = s.model;
   $("empty-tray").value = s.emptyTray;
   const sample = state.trays.filter(t => t.s).length;
-  $("data-summary").textContent = `${fmtInt(state.trays.length)} trays saved (${fmtInt(sample)} sample, ${fmtInt(state.trays.length - sample)} scanned by you).`;
+  $("data-summary").textContent = `${fmtInt(state.trays.length)} trays (${fmtInt(sample)} sample, ${fmtInt(state.trays.length - sample)} real)` +
+    (school ? `, shared by everyone at ${school.name}.` : " saved on this device.");
+  $("confirm-text").textContent = school
+    ? `Delete every tray and vote for ${school.name}? This removes them for every station at the school and can't be undone.`
+    : "Delete every tray and vote? This can't be undone.";
   $("confirm").hidden = true;
+  renderAccount();
 }
 document.querySelectorAll('input[name="recognizer"]').forEach(r => r.onchange = () => { state.settings.recognizer = r.value; save(); updateChip(); toast(r.value === "gemini" ? "Using real AI scans" : "Using Demo mode"); });
 $("api-key").onchange = () => { state.settings.apiKey = $("api-key").value.trim(); save(); updateChip(); toast("API key saved"); };
@@ -843,10 +856,187 @@ $("empty-tray").onchange = () => {
   if (!(v >= 0 && v <= 3000)) { $("empty-tray").value = state.settings.emptyTray; toast("Enter a weight between 0 and 3000 grams"); return; }
   state.settings.emptyTray = v; save(); updateChip(); toast("Empty tray weight saved");
 };
-$("reseed-btn").onclick = () => { loadSampleWeeks(); renderSettings(); toast("4 weeks of sample data loaded"); };
+$("reseed-btn").onclick = async () => {
+  const fresh = loadSampleWeeks();
+  renderSettings(); toast("4 weeks of sample data loaded");
+  if (!school) return;
+  const { error } = await sb.from("trays").delete().eq("school_id", school.id).eq("sample", true);
+  if (error) return syncFail(error);
+  await pushTrays(fresh);
+  toast("Sample data uploaded to " + school.name);
+};
 $("clear-btn").onclick = () => { $("confirm").hidden = false; $("confirm-no").focus(); };
 $("confirm-no").onclick = () => $("confirm").hidden = true;
-$("confirm-yes").onclick = () => { state.trays = []; pending = null; save(); renderSettings(); renderVotes(); renderToday(); toast("All trays and votes deleted"); };
+$("confirm-yes").onclick = async () => {
+  if (school) {
+    const { error } = await sb.from("trays").delete().eq("school_id", school.id);
+    if (error) return syncFail(error);
+  }
+  state.trays = []; pending = null; save(); renderSettings(); renderVotes(); renderToday(); toast("All trays and votes deleted");
+};
+
+// --- school sync (supabase)
+// local-only until someone signs in and picks a school. the publishable key is meant to be public,
+// the row level security in supabase/schema.sql is what keeps schools apart
+const SUPABASE_URL = "https://hhyxgqvwyltxrmbvdswe.supabase.co";
+const SUPABASE_KEY = "sb_publishable_9CQx3oIcZS2bpPBy6dN2-A_j5N0XJZH";
+const sb = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY) : null;
+let user = null, school = null;   // school = { id, name, join_code } while synced
+let pushedConfig = "";
+const inFlight = new WeakMap();   // tray -> its insert, so a fast vote waits for the row id
+
+const configOf = () => ({ items: state.items, categories: state.categories, week: state.week, refs: state.refs });
+const toRow = t => ({ school_id: school.id, served_on: t.d, foods: state.lists[t.l], left_frac: t.f, vote: t.v, sample: !!t.s });
+const fromRow = r => ({ id: r.id, d: r.served_on, l: menuId(r.foods), f: r.left_frac, v: r.vote, s: r.sample ? 1 : 0 });
+function syncFail(e) { console.error(e); toast(`Couldn't sync with the school database: ${e.message || e}`); }
+
+// supabase returns 1000 rows per request max. pulling everything is fine for a few schools,
+// past ~50k trays the dashboard totals should move into SQL
+async function pullTrays() {
+  const rows = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await sb.from("trays").select("id, served_on, foods, left_frac, vote, sample")
+      .eq("school_id", school.id).order("id").range(from, from + 999);
+    if (error) throw error;
+    rows.push(...data);
+    if (data.length < 1000) break;
+  }
+  state.trays = rows.map(fromRow);
+  pending = null;
+  save();
+}
+
+function pushTrays(list) {
+  if (!school || !list.length) return Promise.resolve();
+  const job = (async () => {
+    for (let i = 0; i < list.length; i += 500) {
+      const chunk = list.slice(i, i + 500);
+      const { data, error } = await sb.from("trays").insert(chunk.map(toRow)).select("id");
+      if (error) throw error;
+      data.forEach((r, k) => chunk[k].id = r.id);
+    }
+    save();
+  })();
+  list.forEach(t => inFlight.set(t, job));
+  return job.catch(syncFail);
+}
+
+async function pushVote(tray) {
+  if (!school) return;
+  await inFlight.get(tray)?.catch(() => {});
+  if (!tray.id) return;
+  const { error } = await sb.from("trays").update({ vote: tray.v }).eq("id", tray.id);
+  if (error) syncFail(error);
+}
+
+function pushConfig() {
+  if (!school) return;
+  const json = JSON.stringify(configOf());
+  if (json === pushedConfig) return;
+  pushedConfig = json;
+  sb.from("schools").update({ config: configOf() }).eq("id", school.id).then(({ error }) => error && syncFail(error));
+}
+
+async function openSchool(row) {
+  school = { id: row.id, name: row.name, join_code: row.join_code };
+  state.settings.schoolId = row.id;
+  for (const k of Object.keys(configOf())) if (row.config?.[k]) state[k] = row.config[k];
+  pushedConfig = JSON.stringify(configOf());
+  await pullTrays();
+  refreshAll();
+}
+
+async function startSync() {
+  if (!sb) return renderAccount();
+  const { data: { session } } = await sb.auth.getSession();
+  user = session?.user || null;
+  school = null;
+  if (user) {
+    const { data, error } = await sb.from("schools").select("id, name, join_code, config").order("created_at");
+    if (error) syncFail(error);
+    const row = data?.find(s => s.id === state.settings.schoolId) || data?.[0];
+    if (row) await openSchool(row).catch(syncFail);
+  }
+  renderAccount();
+}
+
+function refreshAll() {
+  renderDayPicker(); renderTray(null); renderVotes(); renderToday(); updateChip();
+  if (!$("view-dashboard").hidden) renderDashboard();
+  if (!$("view-menu").hidden) renderMenu();
+  if (!$("view-settings").hidden) renderSettings();
+}
+
+function accountError(msg) { const el = $("account-error"); el.textContent = msg; el.hidden = !msg; }
+
+function renderAccount() {
+  const box = $("account");
+  if (!sb) {
+    box.innerHTML = `<p class="muted small">Sync is off because the database library didn't load (no internet?). Everything still works on this device.</p>`;
+    return;
+  }
+  if (!user) {
+    box.innerHTML = `<p class="muted small">Sign in so every station at your school shares one menu, one set of trays and one dashboard. Signed out, data stays on this device.</p>
+      <form id="auth-form" class="stack">
+        <div class="field"><label for="auth-email">Email</label><input id="auth-email" type="email" autocomplete="email" required></div>
+        <div class="field"><label for="auth-pass">Password</label><input id="auth-pass" type="password" autocomplete="current-password" minlength="6" required></div>
+        <div class="actions"><button class="btn primary" type="submit">Sign in</button><button class="btn" type="button" id="signup-btn">Create account</button></div>
+      </form>
+      <p class="field-error" id="account-error" hidden></p>`;
+    const creds = () => ({ email: $("auth-email").value.trim(), password: $("auth-pass").value });
+    $("auth-form").onsubmit = async e => {
+      e.preventDefault(); accountError("");
+      const { error } = await sb.auth.signInWithPassword(creds());
+      if (error) return accountError(error.message);
+      startSync();
+    };
+    $("signup-btn").onclick = async () => {
+      if (!$("auth-form").reportValidity()) return;
+      accountError("");
+      const { data, error } = await sb.auth.signUp({ ...creds(), options: { emailRedirectTo: location.origin + location.pathname } });
+      if (error) return accountError(error.message);
+      if (data.session) return startSync();
+      accountError("Almost there: check your email for a confirmation link, then come back and sign in.");
+    };
+    return;
+  }
+  if (!school) {
+    box.innerHTML = `<p class="muted small">Signed in as <b>${esc(user.email)}</b>. Make a new school, or join one with its code.</p>
+      <form class="add-item" id="new-school-form"><label for="school-name">New school</label>
+        <div class="add-row cat-add"><input id="school-name" type="text" placeholder="e.g. Lincoln Middle School" required><button class="btn primary" type="submit">Create</button></div></form>
+      <form class="add-item" id="join-form"><label for="join-code">Join with a code</label>
+        <div class="add-row cat-add"><input id="join-code" type="text" placeholder="e.g. 4F9A2C" autocomplete="off" required><button class="btn" type="submit">Join</button></div></form>
+      <p class="field-error" id="account-error" hidden></p>
+      <div class="actions"><button class="btn small-btn" type="button" id="signout-btn">Sign out</button></div>`;
+    $("new-school-form").onsubmit = async e => {
+      e.preventDefault(); accountError("");
+      const { data, error } = await sb.rpc("create_school", { school_name: $("school-name").value.trim(), school_config: configOf() });
+      if (error) return accountError(error.message);
+      // bring along the trays this device scanned for real, skip the sample ones
+      school = { id: data.id };
+      await pushTrays(state.trays.filter(t => !t.s));
+      await openSchool(data).catch(syncFail);
+      renderAccount(); toast(`${data.name} created`);
+    };
+    $("join-form").onsubmit = async e => {
+      e.preventDefault(); accountError("");
+      const { data, error } = await sb.rpc("join_school", { code: $("join-code").value });
+      if (error) return accountError(error.message);
+      await openSchool(data).catch(syncFail);
+      renderAccount(); toast(`Joined ${data.name}`);
+    };
+  } else {
+    box.innerHTML = `<p>Syncing with <b>${esc(school.name)}</b>.</p>
+      <p class="muted small">Join code: <b class="code">${esc(school.join_code)}</b>. Other stations sign in and enter it to share the same menu and trays.</p>
+      <p class="muted small">Signed in as ${esc(user.email)}.</p>
+      <div class="actions"><button class="btn small-btn" type="button" id="signout-btn">Sign out</button></div>`;
+  }
+  $("signout-btn").onclick = async () => {
+    await sb.auth.signOut();
+    user = null; school = null; state.settings.schoolId = null; save();
+    renderSettings(); toast("Signed out. New trays stay on this device.");
+  };
+}
 
 // --- boot
 const had = load();
@@ -859,5 +1049,6 @@ renderTray(null);
 renderVotes();
 renderToday();
 show((location.hash || "#station").slice(1));
+startSync();
 let rz; addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { if (!$("view-dashboard").hidden) renderDashboard(); }, 150); });
 })();
