@@ -1,4 +1,4 @@
-# sqlite storage. only food, weights and votes - nothing that identifies a kid
+# sqlite storage. only food, weights and votes
 import sqlite3
 from datetime import datetime
 

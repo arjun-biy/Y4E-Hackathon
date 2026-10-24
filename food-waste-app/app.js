@@ -283,6 +283,8 @@ function showTip(html, x, y) {
 const hideTip = () => tip.hidden = true;
 
 // --- navigation
+// coming back from a supabase email link: leave the url alone until supabase has read the sign-in token out of it
+let authLanding = /access_token|error_description/.test(location.hash) || /[?&]code=/.test(location.search);
 const VIEWS = ["station", "dashboard", "menu", "settings"];
 function show(view) {
   if (!VIEWS.includes(view)) view = "station";
@@ -299,7 +301,7 @@ function show(view) {
   if (view === "settings") renderSettings();
   if (view === "station") renderToday();
   if (view !== "station") stopCamera();
-  history.replaceState(null, "", "#" + view);
+  if (!authLanding) history.replaceState(null, "", "#" + view);
   scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
 }
 document.querySelectorAll(".tab").forEach(b => b.onclick = () => show(b.dataset.view));
@@ -948,7 +950,7 @@ async function openSchool(row) {
 
 async function startSync() {
   if (!sb) return renderAccount();
-  const { data: { session } } = await sb.auth.getSession();
+  const { data: { session } } = await sb.auth.getSession();  // waits for supabase to read an email-link token first
   user = session?.user || null;
   school = null;
   if (user) {
@@ -967,7 +969,11 @@ function refreshAll() {
   if (!$("view-settings").hidden) renderSettings();
 }
 
-function accountError(msg) { const el = $("account-error"); el.textContent = msg; el.hidden = !msg; }
+function accountError(msg) {
+  const el = $("account-error");
+  if (!el) return msg && toast(msg);
+  el.textContent = msg; el.hidden = !msg;
+}
 
 function renderAccount() {
   const box = $("account");
@@ -1048,7 +1054,14 @@ renderDayPicker();
 renderTray(null);
 renderVotes();
 renderToday();
-show((location.hash || "#station").slice(1));
-startSync();
+const linkError = new URLSearchParams(location.hash.slice(1)).get("error_description");
+show(authLanding ? "settings" : (location.hash || "#station").slice(1));
+startSync().then(() => {
+  if (!authLanding) return;
+  authLanding = false;
+  history.replaceState(null, "", location.pathname + "#settings");
+  if (linkError) accountError(`That email link didn't work (${linkError}). Sign in with your email and password instead.`);
+  else if (user) toast("Email confirmed, you're signed in");
+});
 let rz; addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { if (!$("view-dashboard").hidden) renderDashboard(); }, 150); });
 })();
