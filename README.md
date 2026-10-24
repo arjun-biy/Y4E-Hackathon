@@ -1,42 +1,48 @@
 <img src="food-waste-app/logo.svg" alt="Tray Return Tracker logo" width="96">
 
-# Y4E Hackathon
+# Tray Return Tracker
 
-Everything for the hackathon lives here: Documents > Y4E Hackathon.
+Our Y4E Hackathon project. It's a station that sits at the cafeteria tray return and shows the kitchen which foods keep getting thrown away, so they know what to change.
 
-## Open the app (no typing)
+It tracks food, not students. No names or student IDs are ever saved.
 
-Double-click **Open Food Waste App.command**. A Terminal window opens and the start page opens in your browser at http://localhost:8100. Click **Open the app** for the station and dashboard. Keep the Terminal window open while you use it.
+## How it works
 
-First time only: if macOS says the file is from an "unidentified developer," right-click it, choose **Open**, then click **Open** again.
+1. A student drops off their tray at the return.
+2. The camera takes a photo and the scale weighs what's left.
+3. The app works out how much of each food is still on the tray.
+4. The student can tap why they left food: too much, didn't like it, too cold, or loved it.
+5. The dashboard adds it all up and suggests changes, like smaller portions or a share table for fruit.
 
-Always use the launcher. The start page's animations and the camera only work on localhost, not when you double-click an HTML file.
+## Running it
 
-## Open it in VS Code
+**On a Mac:** double-click **Open Food Waste App.command**. It starts a small local server and opens the start page at http://localhost:8100. Click **Open the app** for the station and dashboard, and keep the Terminal window open while you use it.
 
-Open this folder in VS Code (File > Open Folder). Press **Cmd+Shift+B** to run the **Start food waste app** task. It starts the server and opens the app in your browser. Press the trash can in the terminal panel to stop it.
+The first time, macOS might say the file is from an "unidentified developer." Right-click it, choose **Open**, then click **Open** again.
 
-On a fresh copy from GitHub, the task and the launcher run `npm install` first to get anime.js (needs Node).
+**In VS Code:** open this folder and press **Cmd+Shift+B** to run the **Start food waste app** task.
 
-## What's in here
+**From a fresh clone:** you need Python 3 and Node. The launcher and the VS Code task run `npm install` the first time to grab anime.js.
 
-| Item | What it is |
-|---|---|
-| `food-waste-app/` | **The website.** `index.html` + `start.css` + `start.js` = start page. `app.html` + `app.css` + `app.js` = the app. anime.js lives in `node_modules` (listed in `package.json`) |
-| `food-waste-station/` | Python code for the real Raspberry Pi hardware (scale, camera, buttons) |
-| `design-system/` | The app's design rules made with UI UX Pro Max, plus `food-icons.blend` (food pictures) and `start-page-scenes.blend` (start page tray, bin and scale) |
-| `food-waste-app/img/` | The 13 food pictures, and `img/start/` for the start page scenes. To add a picture for a new food, save a PNG named like `veggie-wrap.png` |
-| `.claude/skills/ui-ux-pro-max/` | The UI UX Pro Max skill, so Claude Code picks it up in this folder (not uploaded to GitHub) |
-| `logistics-hero/` + `Open Logistics Page.command` | The freight train page |
-| `_old/` | Older versions, safe to delete (not uploaded to GitHub) |
+Always open it through localhost. The camera and the start page animations don't work if you just double-click an HTML file.
 
 ## Using the app
 
-- **Station**: pick the day, hold the tray in front of the MacBook camera, press **Scan tray**, then tap a vote. **Lunch rush** adds 50 made-up trays at once.
-- **Camera**: press **Turn on camera** to use the MacBook camera in the tray box. After each scan it stays on as a small live preview in the corner, so you can scan the next tray right away. The first time, allow camera access in the browser (and in System Settings > Privacy & Security > Camera if macOS asks). Or press **Use a photo** to pick a picture of a real tray (works on a phone too).
-- **Real scale**: put the tray on any kitchen scale and type the number into **Real scale reading** before you press Scan. The app adjusts the AI's guesses so they add up to that weight, the same way the Pi code does.
-- **Real scans (Groq or Gemini)**: get a free key at https://console.groq.com/keys (Groq, starts with `gsk_`) or https://aistudio.google.com/apikey (Gemini, starts with `AIza`), then paste it in **Settings > API key**. The app can tell which one it is. Now **Scan tray** turns on the camera, takes a photo, and the AI says how much of each food is left. If no tray is in the photo, nothing is saved. The key stays in your browser, never in the code, so it's safe to push to GitHub. If it says it couldn't reach the AI, something on the computer (Screen Time, a school profile) or the network is blocking that site.
-- **Demo mode** (in Settings) makes up results with no camera or key. **Lunch rush** and the sample data are always made up.
-- **Dashboard**: charts, filters (7 days, 4 weeks, All), suggestions for the kitchen, and **Export CSV**.
-- **Menu**: change what's served each day and the serving sizes.
-- Data is saved in your browser. Settings > **Reload 4 weeks of sample data** resets the demo.
+- **Station:** pick the day, hold the tray up to the camera, and press **Scan tray**. If there's food left, the student can vote. The camera stays on in the corner, so you can go straight to the next tray.
+- **Use a photo:** pick a picture of a tray instead of using the camera. A top-down phone photo works best.
+- **Photo recognition:** paste a free [Groq](https://console.groq.com/keys) or [Gemini](https://aistudio.google.com/apikey) API key in **Settings**. The app tells which one it is from the key. The key is saved only in your browser, never in the code. Without a key, switch to **Demo mode**, which makes up realistic results.
+- **Real scale:** weigh the tray on any kitchen scale and type the number into **Real scale reading** before you scan. The results get adjusted to match the real weight.
+- **Menu:** each day has categories (Main, Veg main, Side, Fruit, Drink), and each category can have more than one food. You can add your own categories and change serving sizes.
+- **Dashboard:** waste by food, why students left food, waste per day, suggestions for the kitchen, and **Export CSV**. Filter by 7 days, 4 weeks, or all time.
+- **Lunch rush** adds 50 made-up trays at once, which is handy for demos.
+- Everything is saved in your browser. **Settings > Reload 4 weeks of sample data** resets the demo.
+
+## What's in here
+
+| Folder | What it is |
+|---|---|
+| `food-waste-app/` | The website. `index.html`, `start.css` and `start.js` are the start page. `app.html`, `app.css` and `app.js` are the app. `server.py` serves it locally. |
+| `food-waste-app/img/` | Pictures for the start page |
+| `food-waste-station/` | Python version for a Raspberry Pi with a real load cell, camera and vote buttons. See its own README. |
+| `design-system/` | Design notes and the Blender files for the start page scenes |
+| `logistics-hero/` | A separate freight train page, not part of the app |
