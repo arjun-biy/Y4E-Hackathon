@@ -28,10 +28,10 @@ const VEG = new Set(["Steamed broccoli", "Green salad", "Corn", "Carrot sticks"]
 const FRUIT = new Set(["Apple", "Orange slices"]);
 const DRINKS = new Set(["Milk"]);
 const REASONS = [
-  { label: "Too much food", icon: "i-plate" },
-  { label: "Didn't like it", icon: "i-thumb-down" },
-  { label: "Too cold", icon: "i-snow" },
-  { label: "Loved it", icon: "i-heart" }
+  { label: "Too much food" },
+  { label: "Didn't like it" },
+  { label: "Too cold" },
+  { label: "Loved it" }
 ];
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const SCHOOL_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
@@ -356,7 +356,7 @@ function setStatus(msg, err, keep) {
 
 function renderVotes() {
   $("vote-grid").innerHTML = REASONS.map((r, i) =>
-    `<button class="vote-btn" data-v="${i}" ${pending ? "" : "disabled"}><svg><use href="#${r.icon}"/></svg>${r.label}</button>`).join("");
+    `<button class="vote-btn" data-v="${i}" ${pending ? "" : "disabled"}>${r.label}</button>`).join("");
   $("vote-grid").querySelectorAll("button").forEach(b => b.onclick = () => castVote(+b.dataset.v));
   $("vote-card").classList.toggle("ask", !!pending);
   $("vote-hint").textContent = pending ? "Tap one. It's optional and anonymous." : "Scan a tray with leftovers to ask.";
