@@ -2,7 +2,7 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Start food waste app",
+      "label": "Start Seconds",
       "type": "shell",
       "command": "open http://localhost:8100/index.html; python3 server.py 8100",
       "options": { "cwd": "${workspaceFolder}/food-waste-app" },

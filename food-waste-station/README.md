@@ -1,6 +1,6 @@
-# Tray Return Tracker: Raspberry Pi station
+# Seconds: Raspberry Pi station
 
-The hardware version of Tray Return Tracker. It sits at the tray return, weighs each tray with a load cell, takes a photo, works out which foods were left, and gives the kitchen a dashboard with suggestions. It tracks food, not students, so no names or IDs are saved.
+The hardware version of Seconds. It sits at the tray return, weighs each tray with a load cell, takes a photo, works out which foods were left, and gives the kitchen a dashboard with suggestions. It tracks food, not students, so no names or IDs are saved.
 
 ## Try it on a laptop first
 

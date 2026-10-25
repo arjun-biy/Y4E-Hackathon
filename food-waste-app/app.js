@@ -1,4 +1,4 @@
-// Tray Return Tracker - station, dashboard, menu. Everything lives in localStorage, no backend.
+// Seconds - station, dashboard, menu. lives in localStorage, optionally synced to supabase per school
 (() => {
 "use strict";
 
@@ -35,7 +35,8 @@ const REASONS = [
 ];
 const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const SCHOOL_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-const STORE_KEY = "trayReturnTracker.v1";
+const STORE_KEY = "seconds.v1";
+const OLD_STORE_KEY = "trayReturnTracker.v1";  // the app's old name, read once so nobody loses their data
 const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 // --- helpers
@@ -70,7 +71,7 @@ function freshState() {
 }
 function load() {
   try {
-    const raw = localStorage.getItem(STORE_KEY);
+    const raw = localStorage.getItem(STORE_KEY) ?? localStorage.getItem(OLD_STORE_KEY);
     if (raw) {
       state = Object.assign(freshState(), JSON.parse(raw));
       // settings saved before real AI scans existed
@@ -80,6 +81,7 @@ function load() {
         state.categories = [...DEFAULT_CATEGORIES];
         for (const d of SCHOOL_DAYS) { const [m, sd, f, dr] = state.week[d]; state.week[d] = { Main: [m], "Veg main": [], Side: [sd], Fruit: [f], Drink: [dr] }; }
       }
+      if (!localStorage.getItem(STORE_KEY)) save();  // copy it over to the new name right away
       return true;
     }
   } catch (e) { /* storage blocked or corrupt */ }

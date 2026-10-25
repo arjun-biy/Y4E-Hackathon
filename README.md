@@ -1,6 +1,6 @@
-<img src="food-waste-app/logo.svg" alt="Tray Return Tracker logo" width="96">
+<img src="food-waste-app/logo.svg" alt="Seconds logo" width="96">
 
-# Tray Return Tracker
+# Seconds
 
 Our Y4E Hackathon project. It's a station that sits at the cafeteria tray return and shows the kitchen which foods keep getting thrown away, so they know what to change.
 
@@ -16,11 +16,11 @@ It tracks food, not students. No names or student IDs are ever saved.
 
 ## Running it
 
-**On a Mac:** double-click **Open Food Waste App.command**. It starts a small local server and opens the start page at http://localhost:8100. Click **Open the app** for the station and dashboard, and keep the Terminal window open while you use it.
+**On a Mac:** double-click **Open Seconds.command**. It starts a small local server and opens the start page at http://localhost:8100. Click **Open the app** for the station and dashboard, and keep the Terminal window open while you use it.
 
 The first time, macOS might say the file is from an "unidentified developer." Right-click it, choose **Open**, then click **Open** again.
 
-**In VS Code:** open this folder and press **Cmd+Shift+B** to run the **Start food waste app** task.
+**In VS Code:** open this folder and press **Cmd+Shift+B** to run the **Start Seconds** task.
 
 **From a fresh clone:** all you need is Python 3. There's nothing to install.
 

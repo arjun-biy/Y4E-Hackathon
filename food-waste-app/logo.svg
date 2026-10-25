@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 57">
-  <!-- Tray Return Tracker logo. The app uses <use href="logo.svg#mark"> so the tray takes the text color (works in dark mode); opened directly (favicon) it draws itself below. -->
+  <!-- Seconds logo. The app uses <use href="logo.svg#mark"> so the tray takes the text color (works in dark mode); opened directly (favicon) it draws itself below. -->
   <style>.fav { color: #1a1a1a; } @media (prefers-color-scheme: dark) { .fav { color: #f2f2f2; } }</style>
   <symbol id="mark" viewBox="0 0 64 57">
     <path fill="currentColor" fill-rule="evenodd" d="M12 2H52A10 10 0 0 1 62 12V45A10 10 0 0 1 52 55H12A10 10 0 0 1 2 45V12A10 10 0 0 1 12 2ZM10.3 6.8H15.8A3.6 3.6 0 0 1 19.4 10.4V46.6A3.6 3.6 0 0 1 15.8 50.2H10.3A3.6 3.6 0 0 1 6.7 46.6V10.4A3.6 3.6 0 0 1 10.3 6.8ZM26 6.8H39.1A3.6 3.6 0 0 1 42.7 10.4V22.2A3.6 3.6 0 0 1 39.1 25.8H26A3.6 3.6 0 0 1 22.4 22.2V10.4A3.6 3.6 0 0 1 26 6.8ZM49 6.8H53.7A3.6 3.6 0 0 1 57.3 10.4V22.2A3.6 3.6 0 0 1 53.7 25.8H49A3.6 3.6 0 0 1 45.4 22.2V10.4A3.6 3.6 0 0 1 49 6.8ZM26 28.8H53.7A3.6 3.6 0 0 1 57.3 32.4V46.7A3.6 3.6 0 0 1 53.7 50.3H26A3.6 3.6 0 0 1 22.4 46.7V32.4A3.6 3.6 0 0 1 26 28.8Z"/>

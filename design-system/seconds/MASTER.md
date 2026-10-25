@@ -6,7 +6,7 @@
 
 ---
 
-**Project:** Tray Return Tracker
+**Project:** Seconds
 **Generated:** 2026-10-09 11:57:43
 **Category:** General
 **Design Dials:** Variance 6/10 (Balanced / Modern) | Motion 5/10 (Standard) | Density 7/10 (Standard)
